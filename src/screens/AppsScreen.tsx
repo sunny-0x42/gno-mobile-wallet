@@ -1,75 +1,88 @@
 import React from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Muted } from '@/components/ui';
+import { CATALOG_DAPPS, FEATURED_DAPPS } from '@/config/dapps';
+import { useRootNavigation } from '@/hooks/useRootNavigation';
 import { useWallet } from '@/provider/WalletProvider';
-import type { RootStackParamList } from '@/router/types';
 import { colors, spacing, typography } from '@/theme';
 
-const DAPP_LINKS = [
-  {
-    name: 'gno.land',
-    desc: 'Official portal & realms',
-    url: 'https://gno.land',
-    icon: 'planet' as const,
-    color: colors.primary,
-  },
-  {
-    name: 'Faucet Hub',
-    desc: 'Get testnet GNOT',
-    url: 'https://faucet.gno.land',
-    icon: 'water' as const,
-    color: colors.teal,
-  },
-  {
-    name: 'Documentation',
-    desc: 'Builders & users guides',
-    url: 'https://docs.gno.land',
-    icon: 'book' as const,
-    color: colors.tint,
-  },
-  {
-    name: 'Adena',
-    desc: 'Desktop extension wallet',
-    url: 'https://adena.app',
-    icon: 'desktop' as const,
-    color: colors.purple,
-  },
-];
-
 export default function AppsScreen() {
-  const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { network } = useWallet();
+  const { navigateRoot } = useRootNavigation();
+  const { network, activeAccount } = useWallet();
+
+  const openDApp = (id: string) => {
+    const dapp = CATALOG_DAPPS.find((d) => d.id === id);
+    if (!dapp) return;
+    navigateRoot('DAppBrowser', {
+      url: dapp.url,
+      title: dapp.name,
+      injectAdena: !!dapp.injectAdena,
+      preferredChainId: dapp.preferredChainId,
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.pad} showsVerticalScrollIndicator={false}>
         <Text style={typography.largeTitle}>Explore</Text>
         <Muted>
-          Discover gno.land. In-app browser & connect protocol planned. Sign via Call Realm or deep
-          links today.
+          Open gno.land dApps in the in-app browser. GnoSwap can connect via an Adena-compatible
+          wallet API built into this app.
         </Muted>
 
         <View style={styles.networkHint}>
-          <View style={[styles.dot, { backgroundColor: network.isTestnet ? colors.orange : colors.success }]} />
-          <Text style={styles.networkText}>Connected to {network.name}</Text>
+          <View
+            style={[
+              styles.dot,
+              { backgroundColor: network.isTestnet ? colors.orange : colors.success },
+            ]}
+          />
+          <Text style={styles.networkText}>
+            {network.name}
+            {activeAccount ? ` · ${activeAccount.address.slice(0, 8)}…` : ' · no account'}
+          </Text>
         </View>
 
+        <Text style={styles.section}>Featured</Text>
+        {FEATURED_DAPPS.map((d) => (
+          <Pressable
+            key={d.id}
+            onPress={() => openDApp(d.id)}
+            style={({ pressed }) => [styles.featured, pressed && { opacity: 0.85 }]}
+          >
+            <View style={[styles.featuredIcon, { backgroundColor: d.color + '33' }]}>
+              <Ionicons name={d.icon} size={28} color={d.color} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.featuredName}>{d.name}</Text>
+              <Text style={styles.featuredDesc}>{d.description}</Text>
+              <Text style={styles.featuredCta}>Open in wallet →</Text>
+            </View>
+          </Pressable>
+        ))}
+
+        <Button
+          title="Launch GnoSwap"
+          icon="swap-horizontal"
+          size="lg"
+          onPress={() => openDApp('gnoswap')}
+        />
+
+        <Text style={[styles.section, { marginTop: 20 }]}>More</Text>
         <View style={styles.grid}>
-          {DAPP_LINKS.map((d) => (
+          {CATALOG_DAPPS.filter((d) => !d.featured).map((d) => (
             <Pressable
-              key={d.url}
-              onPress={() => Linking.openURL(d.url)}
+              key={d.id}
+              onPress={() => openDApp(d.id)}
               style={({ pressed }) => [styles.tile, pressed && { opacity: 0.7 }]}
             >
               <View style={[styles.tileIcon, { backgroundColor: d.color + '33' }]}>
                 <Ionicons name={d.icon} size={24} color={d.color} />
               </View>
               <Text style={styles.tileName}>{d.name}</Text>
-              <Text style={styles.tileDesc}>{d.desc}</Text>
+              <Text style={styles.tileDesc}>{d.description}</Text>
             </Pressable>
           ))}
         </View>
@@ -77,8 +90,8 @@ export default function AppsScreen() {
         <Button
           title="Call a Realm"
           icon="code-slash"
-          size="lg"
-          onPress={() => nav.navigate('CallRealm')}
+          variant="secondary"
+          onPress={() => navigateRoot('CallRealm')}
         />
       </ScrollView>
     </SafeAreaView>
@@ -96,6 +109,33 @@ const styles = StyleSheet.create({
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
   networkText: { ...typography.subhead },
+  section: {
+    ...typography.footnote,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+    marginLeft: 4,
+  },
+  featured: {
+    flexDirection: 'row',
+    gap: 14,
+    backgroundColor: colors.bgElevated,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.primary + '44',
+  },
+  featuredIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featuredName: { ...typography.title3 },
+  featuredDesc: { ...typography.footnote, marginTop: 4 },
+  featuredCta: { ...typography.caption1, color: colors.primary, marginTop: 8, fontWeight: '600' },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

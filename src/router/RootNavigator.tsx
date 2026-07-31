@@ -23,6 +23,7 @@ import CallRealmScreen from '@/screens/CallRealmScreen';
 import SettingsScreen from '@/screens/SettingsScreen';
 import AppsScreen from '@/screens/AppsScreen';
 import DeepLinkConfirmScreen from '@/screens/DeepLinkConfirmScreen';
+import DAppBrowserScreen from '@/screens/DAppBrowserScreen';
 import { parseDeepLink } from '@/services/deepLink';
 import { useWallet } from '@/provider/WalletProvider';
 import { colors } from '@/theme';
@@ -141,6 +142,11 @@ export default function RootNavigator() {
           name="DeepLinkConfirm"
           component={DeepLinkConfirmScreen}
           options={{ presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="DAppBrowser"
+          component={DAppBrowserScreen}
+          options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
         />
       </Stack.Navigator>
       <DeepLinkBridge />

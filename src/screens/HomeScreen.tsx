@@ -249,10 +249,17 @@ export default function HomeScreen() {
             onPress={() => navigateRoot('CallRealm')}
           />
           <ActionTile
-            icon="refresh"
-            label="Refresh"
+            icon="swap-horizontal"
+            label="Swap"
             color={colors.orange}
-            onPress={() => load()}
+            onPress={() =>
+              navigateRoot('DAppBrowser', {
+                url: 'https://beta.gnoswap.io/',
+                title: 'GnoSwap',
+                injectAdena: true,
+                preferredChainId: 'topaz-1',
+              })
+            }
           />
         </Row>
 

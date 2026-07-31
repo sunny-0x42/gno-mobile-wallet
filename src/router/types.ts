@@ -22,6 +22,12 @@ export type RootStackParamList = {
     rpc?: string;
     chainId?: string;
   };
+  DAppBrowser: {
+    url: string;
+    title?: string;
+    injectAdena?: boolean;
+    preferredChainId?: string;
+  };
 };
 
 export type MainTabParamList = {

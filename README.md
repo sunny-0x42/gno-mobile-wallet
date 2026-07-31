@@ -23,7 +23,7 @@ Inspired by [Adena](https://adena.app) (desktop extension). Independent project 
 | Realm `MsgCall` | ✅ Web |
 | Multi-account | ✅ |
 | iOS / Android native shell | 🚧 Scaffold + EAS configs |
-| Adena-compatible dApp connect | 📋 Planned |
+| In-app dApp browser + Adena API (GnoSwap) | ✅ |
 
 Default testnet: **Topaz** (`topaz-1`, `https://rpc.topaz.testnets.gno.land`).
 
@@ -210,3 +210,4 @@ Third-party packages keep their own licenses (`@gnolang/*`, Expo, etc.).
 | [docs/WEB_PWA.md](docs/WEB_PWA.md) | Browser / PWA usage |
 | [docs/IOS_DEVICE_INSTALL.md](docs/IOS_DEVICE_INSTALL.md) | iOS / EAS install |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | GitHub Pages & hosting |
+| [docs/DAPP_BROWSER.md](docs/DAPP_BROWSER.md) | GnoSwap / Adena bridge |

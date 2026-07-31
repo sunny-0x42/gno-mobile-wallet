@@ -11,6 +11,7 @@ import React, { useEffect } from 'react';
 import { Platform, StatusBar as RNStatusBar } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AdenaHostProvider } from '@/provider/AdenaHost';
 import { WalletProvider, useWallet } from '@/provider/WalletProvider';
 import RootNavigator from '@/router/RootNavigator';
 import { BUILTIN_NETWORKS, DEFAULT_NETWORK_ID } from '@/config/networks';
@@ -32,8 +33,10 @@ function AppTree() {
   return (
     <SafeAreaProvider>
       <WalletProvider>
-        <StatusBarConfig />
-        <RootNavigator />
+        <AdenaHostProvider>
+          <StatusBarConfig />
+          <RootNavigator />
+        </AdenaHostProvider>
       </WalletProvider>
     </SafeAreaProvider>
   );
@@ -73,9 +76,11 @@ export default function App() {
           config={{ remote: defaultNet.remote, chain_id: defaultNet.chainId }}
         >
           <WalletProvider>
-            <StatusBarConfig />
-            <Bridge />
-            <RootNavigator />
+            <AdenaHostProvider>
+              <StatusBarConfig />
+              <Bridge />
+              <RootNavigator />
+            </AdenaHostProvider>
           </WalletProvider>
         </GnoNativeProvider>
       </SafeAreaProvider>
