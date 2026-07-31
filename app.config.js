@@ -67,7 +67,7 @@ module.exports = {
   plugins: [],
   web: {
     bundler: 'metro',
-    output: 'static',
+    // SPA export (App.tsx entry). Do not set output:"static" — that requires expo-router.
     favicon: './assets/favicon.png',
     name: 'Gno Wallet',
     shortName: 'Gno',
