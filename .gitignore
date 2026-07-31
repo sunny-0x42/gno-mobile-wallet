@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Expo / Metro
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native generated projects (use prebuild locally)
+ios/
+android/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs & coverage
+*.log
+npm-debug.*
+coverage/
+
+# EAS / local
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# TypeScript
+*.tsbuildinfo
