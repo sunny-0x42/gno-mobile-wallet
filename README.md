@@ -76,24 +76,31 @@ npm run ts:check
 
 ---
 
-## Hosted web demo (GitHub Pages)
+## Hosted web demo
 
-GitHub **cannot** run a long-lived Metro/dev server for free. What works well:
+GitHub **cannot** run a long-lived Metro/dev server for free. Publish a **static web export** instead:
 
-1. **Static export + GitHub Pages** (recommended for a public demo)  
-2. **Vercel / Netlify / Cloudflare Pages** from the same export  
-3. **GitHub Codespaces** — temporary full `npm run web` for contributors  
+| Host | Config | Base path |
+|------|--------|-----------|
+| **Netlify** (recommended) | [`netlify.toml`](./netlify.toml) | `/` → `https://<name>.netlify.app` |
+| **GitHub Pages** | [`.github/workflows/deploy-pages.yml`](./.github/workflows/deploy-pages.yml) | `/gno-mobile-wallet/` |
+| Vercel / Cloudflare Pages | same `dist/` export | usually `/` |
 
-This repo ships a **GitHub Actions** workflow that builds the web app and deploys to **GitHub Pages** on every push to `main`.
+### Netlify (community trial)
 
-### Enable Pages on your fork
+1. [app.netlify.com](https://app.netlify.com) → **Add new site → Import from GitHub**.
+2. Select this repo. Build settings come from `netlify.toml` (`publish = dist`).
+3. Deploy. Each push to `main` redeploys automatically.
 
-1. Push this repository to GitHub.
-2. **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. Push to `main` (or run the workflow manually under **Actions**).
-4. Open `https://<user>.github.io/gno-mobile-wallet/` (or your custom domain).
+See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for CLI deploy and security notes.
 
-### Deploy locally / inspect the export
+### GitHub Pages
+
+1. **Settings → Pages → Source: GitHub Actions**.
+2. Push to `main` (workflow sets `GITHUB_PAGES=1` for the project subpath).
+3. Open `https://<user>.github.io/gno-mobile-wallet/`.
+
+### Local static preview
 
 ```bash
 npm run web:export

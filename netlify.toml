@@ -1,0 +1,32 @@
+# Netlify static hosting for Expo web export (SPA).
+# Site is served from domain root — do NOT set GITHUB_PAGES here
+# (that prefix is only for GitHub project Pages: /gno-mobile-wallet/).
+
+[build]
+  command = "npm config set @buf:registry https://buf.build/gen/npm/v1/ && npm install --legacy-peer-deps && npx expo export --platform web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  CI = "true"
+  # Explicit empty base path (root of *.netlify.app)
+  GITHUB_PAGES = "0"
+
+# SPA fallback — React Navigation client routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Reasonable cache for hashed static assets
+[[headers]]
+  for = "/_expo/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

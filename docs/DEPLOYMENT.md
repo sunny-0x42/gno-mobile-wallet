@@ -3,14 +3,60 @@
 ## Can GitHub “run the server” for everyone?
 
 | Approach | Works? | Notes |
-|----------|--------|--------|
-| **GitHub Pages (static web export)** | ✅ Yes | Best public demo; no long-running Node process |
-| **Vercel / Netlify / Cloudflare Pages** | ✅ Yes | Same static export |
+|----------|--------|-------|
+| **Netlify (static web export)** | ✅ Yes | Recommended for community demos (`*.netlify.app`) |
+| **GitHub Pages (static web export)** | ✅ Yes | Project Pages URL needs `GITHUB_PAGES=1` base path |
+| **Vercel / Cloudflare Pages** | ✅ Yes | Same static export |
 | **Always-on Metro (`expo start`) on GitHub** | ❌ No | GitHub does not host free 24/7 app servers |
 | **GitHub Actions** | ✅ Build only | Builds on push; can deploy artifacts to Pages |
 | **Codespaces** | ⚠️ Temporary | Contributors run `npm run web` in a cloud IDE |
 
-**Conclusion:** publish a **static web build** to GitHub Pages so anyone opens a URL. For local development, contributors still run `npm run web` / `web:lan` on their machines.
+**Conclusion:** publish a **static web build** (Expo `export --platform web` → `dist/`) so anyone opens a URL. For local development, contributors still run `npm run web` / `web:lan` on their machines.
+
+---
+
+## Netlify (recommended for community trials)
+
+Config lives in [`netlify.toml`](../netlify.toml):
+
+| Setting | Value |
+|---------|--------|
+| Build command | install + `expo export --platform web` |
+| Publish directory | `dist` |
+| Base URL | **root** (`/`) — do not set `GITHUB_PAGES=1` |
+| SPA | `/*` → `/index.html` (200) |
+
+### Connect the GitHub repo (one-time)
+
+1. Open [Netlify](https://app.netlify.com) (GitHub already linked).
+2. **Add new site → Import an existing project → GitHub**.
+3. Choose `sunny-0x42/gno-mobile-wallet` (or your fork).
+4. Leave build settings as detected from `netlify.toml` (Publish directory = `dist`).
+5. Deploy. Every push to `main` rebuilds automatically.
+
+Site URL will look like:
+
+```text
+https://<random-or-custom-name>.netlify.app
+```
+
+Rename under **Site configuration → Domain management**.
+
+### Manual CLI deploy
+
+```bash
+npm install --legacy-peer-deps
+npx expo export --platform web
+npx netlify-cli deploy --prod --dir=dist
+```
+
+Requires `netlify login` (or env `NETLIFY_AUTH_TOKEN`).
+
+### Security note for public demos
+
+- Use **Topaz / testnets** only for community trials.
+- Encrypted vault is stored in the **browser** (localStorage); clearing site data wipes the vault.
+- Never encourage large mainnet balances in a shared demo URL.
 
 ---
 
@@ -35,9 +81,9 @@ git push -u origin main
 
 `.github/workflows/deploy-pages.yml`:
 
-- Installs dependencies  
-- Runs `npx expo export --platform web`  
-- Uploads `dist/` to GitHub Pages  
+- Installs dependencies
+- Runs `npx expo export --platform web` with `GITHUB_PAGES=1`
+- Uploads `dist/` to GitHub Pages
 
 After the first successful run, the site is available at:
 
