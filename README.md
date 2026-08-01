@@ -16,6 +16,7 @@ Inspired by [Adena](https://adena.app) (desktop extension). Independent project 
 |------|--------|
 | Create / import BIP39 seed (`g1…` addresses) | ✅ Web (JS client) · 🔲 Native via gnonative |
 | Encrypted local vault (password) | ✅ |
+| Device passkey 2FA (WebAuthn + password) | ✅ Web / HTTPS |
 | Multi-network (Topaz, Test13, Staging, Betanet, custom RPC) | ✅ |
 | Live GNOT balance (RPC `bank/balances`) | ✅ |
 | Multi-asset list (native + watched GRC20) | ✅ |

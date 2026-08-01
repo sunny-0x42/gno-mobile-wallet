@@ -184,6 +184,25 @@ export class WebGnoClient implements GnoClient {
     return { name: rec.name, address: rec.address };
   }
 
+  /**
+   * Verify password decrypts the vault without opening a signing session.
+   * Used before passkey 2FA so a wrong password fails without unlocking.
+   */
+  async verifyPassword(name: string, password: string): Promise<void> {
+    const vault = await this.loadVault();
+    const rec = vault.find((r) => r.name === name);
+    if (!rec) throw new Error('Account not found');
+    try {
+      const mnemonic = await decryptSecret(rec.secret, password);
+      if (!mnemonic || mnemonic.split(/\s+/).length < 12) {
+        throw new Error('Wrong password');
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message === 'Account not found') throw e;
+      throw new Error('Wrong password');
+    }
+  }
+
   /** Unlock vault entry with password (needed after page reload to sign). */
   async unlockAccount(name: string, password: string): Promise<WalletAccount> {
     const vault = await this.loadVault();

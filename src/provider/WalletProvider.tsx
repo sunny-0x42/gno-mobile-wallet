@@ -21,6 +21,13 @@ import {
   type GnoClient,
   type WebGnoClient,
 } from '@/services/gnoClient';
+import {
+  authenticatePasskey,
+  getPasskeySupport,
+  registerPasskey,
+  type PasskeyCredentialMeta,
+  type PasskeySupport,
+} from '@/services/passkey';
 import { storage } from '@/services/storage';
 import type { CustomToken, LocalTxRecord, WalletAccount } from '@/types';
 import { gnotToUgnot } from '@/utils/format';
@@ -53,7 +60,20 @@ type WalletContextValue = {
   createAccount: (name: string, mnemonic: string, password: string) => Promise<WalletAccount>;
   importAccount: (name: string, mnemonic: string, password: string) => Promise<WalletAccount>;
   generatePhrase: () => Promise<string>;
+  /**
+   * Unlock signing session. When a device passkey is enabled for the account,
+   * password is verified first, then the platform passkey must succeed.
+   */
   unlockAccount: (name: string, password: string) => Promise<void>;
+  /** Whether the active account has passkey 2FA enabled */
+  passkeyEnabled: boolean;
+  passkeyMeta: PasskeyCredentialMeta | null;
+  passkeySupport: PasskeySupport | null;
+  refreshPasskeyState: () => Promise<void>;
+  /** Register platform passkey (requires correct password). */
+  enablePasskey: (password: string) => Promise<void>;
+  /** Remove passkey after password (+ passkey if still available). */
+  disablePasskey: (password: string) => Promise<void>;
   sendGnot: (to: string, amountGnot: string, memo?: string) => Promise<LocalTxRecord>;
   callRealm: (
     pkgPath: string,
@@ -83,6 +103,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [history, setHistory] = useState<LocalTxRecord[]>([]);
   const [tokens, setTokens] = useState<CustomToken[]>([]);
   const [unlockedTick, setUnlockedTick] = useState(0);
+  const [passkeyMeta, setPasskeyMeta] = useState<PasskeyCredentialMeta | null>(null);
+  const [passkeySupport, setPasskeySupport] = useState<PasskeySupport | null>(null);
 
   const networks = useMemo(
     () => [...BUILTIN_NETWORKS, ...customNetworks],
@@ -196,6 +218,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const generatePhrase = useCallback(async () => client.generateRecoveryPhrase(), [client]);
 
+  const refreshPasskeyState = useCallback(async () => {
+    const support = await getPasskeySupport();
+    setPasskeySupport(support);
+    if (activeAccount) {
+      setPasskeyMeta(await storage.getPasskey(activeAccount.name));
+    } else {
+      setPasskeyMeta(null);
+    }
+  }, [activeAccount]);
+
+  useEffect(() => {
+    refreshPasskeyState().catch(() => undefined);
+  }, [refreshPasskeyState]);
+
   const unlockAccount = useCallback(
     async (name: string, password: string) => {
       const c = client as WebGnoClient;
@@ -203,12 +239,75 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         await client.activateAccount(name);
         return;
       }
+
+      // 1) Verify password without opening session
+      if (typeof c.verifyPassword === 'function') {
+        await c.verifyPassword(name, password);
+      }
+
+      // 2) Device passkey second factor (if enabled for this account)
+      const pk = await storage.getPasskey(name);
+      if (pk) {
+        await authenticatePasskey(pk);
+      }
+
+      // 3) Open signing session
       const acc = await c.unlockAccount(name, password);
       setActiveAccount(acc);
       await storage.setActiveAccountName(name);
       setUnlockedTick((t) => t + 1);
     },
     [client],
+  );
+
+  const enablePasskey = useCallback(
+    async (password: string) => {
+      if (!activeAccount) throw new Error('No active account');
+      if (client.isMock) throw new Error('Passkeys are not available in mock mode');
+      const c = client as WebGnoClient;
+      if (typeof c.verifyPassword === 'function') {
+        await c.verifyPassword(activeAccount.name, password);
+      } else if (typeof c.unlockAccount === 'function') {
+        // Fallback: full unlock validates password
+        await c.unlockAccount(activeAccount.name, password);
+        setUnlockedTick((t) => t + 1);
+      } else {
+        throw new Error('Password verification not available on this client');
+      }
+      const support = await getPasskeySupport();
+      if (!support.supported) {
+        throw new Error(support.reason || 'Passkeys not supported on this device');
+      }
+      const meta = await registerPasskey(activeAccount.name);
+      await storage.setPasskey(meta);
+      setPasskeyMeta(meta);
+      setPasskeySupport(support);
+    },
+    [activeAccount, client],
+  );
+
+  const disablePasskey = useCallback(
+    async (password: string) => {
+      if (!activeAccount) throw new Error('No active account');
+      const c = client as WebGnoClient;
+      if (typeof c.verifyPassword === 'function') {
+        await c.verifyPassword(activeAccount.name, password);
+      } else if (typeof c.unlockAccount === 'function') {
+        await c.unlockAccount(activeAccount.name, password);
+        setUnlockedTick((t) => t + 1);
+      }
+      const existing = await storage.getPasskey(activeAccount.name);
+      if (existing) {
+        try {
+          await authenticatePasskey(existing);
+        } catch {
+          // Allow disable with password alone if device passkey was revoked/cleared
+        }
+      }
+      await storage.removePasskey(activeAccount.name);
+      setPasskeyMeta(null);
+    },
+    [activeAccount, client],
   );
 
   const sendGnot = useCallback(
@@ -323,13 +422,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const removeAccount = useCallback(
     async (name: string) => {
       await client.deleteAccount(name);
+      await storage.removePasskey(name);
       if (activeAccount?.name === name) {
         setActiveAccount(null);
+        setPasskeyMeta(null);
       }
       await refreshAccounts();
     },
     [activeAccount, client, refreshAccounts],
   );
+
+  const passkeyEnabled = !!passkeyMeta;
 
   const value: WalletContextValue = {
     ready,
@@ -351,6 +454,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     importAccount,
     generatePhrase,
     unlockAccount,
+    passkeyEnabled,
+    passkeyMeta,
+    passkeySupport,
+    refreshPasskeyState,
+    enablePasskey,
+    disablePasskey,
     sendGnot,
     callRealm,
     addToken,
