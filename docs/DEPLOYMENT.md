@@ -34,13 +34,23 @@ Config lives in [`netlify.toml`](../netlify.toml):
 4. Leave build settings as detected from `netlify.toml` (Publish directory = `dist`).
 5. Deploy. Every push to `main` rebuilds automatically.
 
-Site URL will look like:
+**Live site (this project):**
 
 ```text
-https://<random-or-custom-name>.netlify.app
+https://gno-mobile-wallet.netlify.app
 ```
 
-Rename under **Site configuration → Domain management**.
+Admin: https://app.netlify.com/projects/gno-mobile-wallet  
+
+Rename under **Site configuration → Domain management** if you want a different subdomain.
+
+### Continuous deploy from GitHub
+
+If deploys were done via CLI only, link the repo once so each push to `main` rebuilds:
+
+1. Netlify → **gno-mobile-wallet** → **Project configuration → Build & deploy**
+2. **Link repository** → GitHub → `sunny-0x42/gno-mobile-wallet`
+3. Confirm branch `main` and that `netlify.toml` is used
 
 ### Manual CLI deploy
 
