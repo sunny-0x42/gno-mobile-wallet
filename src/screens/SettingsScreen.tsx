@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -63,14 +63,21 @@ export default function SettingsScreen() {
     setPkBusy(true);
     setPkErr(undefined);
     try {
-      if (pkPwd.length < 8) {
-        throw new Error('Enter your wallet password to enable passkey (min 8 characters)');
+      // Unlocked → password optional. Locked → need password in Security field.
+      if (!isUnlocked && pkPwd.trim().length < 1) {
+        throw new Error(
+          'Enter your wallet password in the Security field below (this is separate from Unlock), then tap Enable again.',
+        );
       }
-      await enablePasskey(pkPwd);
+      if (!isUnlocked && pkPwd.length > 0 && pkPwd.length < 8) {
+        throw new Error('Wallet password must be at least 8 characters.');
+      }
+
+      await enablePasskey(isUnlocked ? pkPwd || undefined : pkPwd);
       setPkPwd('');
       await alertAsync(
         'Passkey enabled',
-        'Unlock now requires your password and this device’s biometric / PIN (Windows Hello, Face ID, Touch ID, etc.).',
+        'Next unlock will ask for your password, then Windows Hello / Face ID / Touch ID / device PIN.',
       );
     } catch (e) {
       setPkErr(e instanceof Error ? e.message : String(e));
@@ -88,10 +95,10 @@ export default function SettingsScreen() {
     setPkBusy(true);
     setPkErr(undefined);
     try {
-      if (pkPwd.length < 8) {
-        throw new Error('Enter your wallet password to disable passkey');
+      if (!isUnlocked && pkPwd.trim().length < 1) {
+        throw new Error('Enter your wallet password to disable passkey, or unlock first.');
       }
-      await disablePasskey(pkPwd);
+      await disablePasskey(isUnlocked ? pkPwd || undefined : pkPwd);
       setPkPwd('');
       await alertAsync('Passkey disabled', 'Password-only unlock is restored.');
     } catch (e) {
@@ -102,7 +109,9 @@ export default function SettingsScreen() {
   };
 
   const passkeySupported = passkeySupport?.supported === true;
-  const passkeyBlockedReason = passkeySupport && !passkeySupport.supported ? passkeySupport.reason : undefined;
+  const passkeyBlockedReason =
+    passkeySupport && !passkeySupport.supported ? passkeySupport.reason : undefined;
+  const passkeyHint = passkeySupport?.hint;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -119,9 +128,7 @@ export default function SettingsScreen() {
               label={isMock ? 'Fake mock' : isUnlocked ? 'Unlocked' : 'Locked'}
               tone={isMock ? 'warn' : isUnlocked ? 'ok' : 'warn'}
             />
-            {!isMock && passkeyEnabled ? (
-              <Badge label="Passkey" tone="ok" />
-            ) : null}
+            {!isMock && passkeyEnabled ? <Badge label="Passkey" tone="ok" /> : null}
           </View>
         </View>
 
@@ -141,6 +148,8 @@ export default function SettingsScreen() {
               value={pwd}
               onChangeText={setPwd}
               error={unlockErr}
+              autoComplete="password"
+              textContentType="password"
             />
             <Button
               title={
@@ -165,9 +174,38 @@ export default function SettingsScreen() {
             <View style={styles.securityBox}>
               <Text style={styles.unlockTitle}>Device passkey</Text>
               <Muted>
-                Adds a second factor on this device (WebAuthn platform authenticator). Your seed stays
-                encrypted with the password; the passkey only gates unlock.
+                Second factor on this browser/device (WebAuthn). Your seed stays encrypted with the
+                password; passkey only gates unlock after password.
               </Muted>
+
+              <View style={styles.steps}>
+                <Text style={styles.stepTitle}>How to enable</Text>
+                {isUnlocked ? (
+                  <Text style={styles.stepLine}>
+                    1. Wallet is unlocked — tap <Text style={styles.em}>Enable device passkey</Text>{' '}
+                    below (password optional).
+                  </Text>
+                ) : (
+                  <Text style={styles.stepLine}>
+                    1. Type your wallet password in the Security password field (not only Unlock),
+                    then tap Enable.
+                  </Text>
+                )}
+                <Text style={styles.stepLine}>
+                  2. Approve the system prompt (Windows Hello, Face ID, Touch ID, or security key).
+                </Text>
+                <Text style={styles.stepLine}>
+                  3. Use Chrome or Edge on HTTPS ({' '}
+                  <Text
+                    style={styles.link}
+                    onPress={() => Linking.openURL('https://gno-mobile-wallet.netlify.app')}
+                  >
+                    gno-mobile-wallet.netlify.app
+                  </Text>
+                  ).
+                </Text>
+              </View>
+
               <View style={styles.pkStatus}>
                 <Text style={styles.pkStatusLabel}>Status</Text>
                 <Badge
@@ -175,10 +213,12 @@ export default function SettingsScreen() {
                     passkeyEnabled
                       ? 'Enabled'
                       : passkeySupported
-                        ? 'Not enabled'
+                        ? passkeySupport?.platform === false
+                          ? 'Try enable'
+                          : 'Not enabled'
                         : 'Unavailable'
                   }
-                  tone={passkeyEnabled ? 'ok' : passkeySupported ? 'warn' : 'warn'}
+                  tone={passkeyEnabled ? 'ok' : 'warn'}
                 />
               </View>
               {passkeyEnabled && passkeyMeta ? (
@@ -189,15 +229,32 @@ export default function SettingsScreen() {
               {passkeyBlockedReason ? (
                 <Text style={styles.pkWarn}>{passkeyBlockedReason}</Text>
               ) : null}
+              {passkeyHint ? <Text style={styles.pkWarn}>{passkeyHint}</Text> : null}
+              {Platform.OS !== 'web' ? (
+                <Text style={styles.pkWarn}>
+                  Passkeys are supported in the web wallet (Safari/Chrome). Native app passkeys
+                  need a later build.
+                </Text>
+              ) : null}
 
-              <Input
-                label="Password (required to change passkey)"
-                placeholder="••••••••"
-                secureTextEntry
-                value={pkPwd}
-                onChangeText={setPkPwd}
-                error={pkErr}
-              />
+              {!passkeyEnabled || !isUnlocked ? (
+                <Input
+                  label={
+                    isUnlocked
+                      ? 'Password (optional — already unlocked)'
+                      : 'Wallet password (required to enable / disable)'
+                  }
+                  placeholder="••••••••"
+                  secureTextEntry
+                  value={pkPwd}
+                  onChangeText={setPkPwd}
+                  error={pkErr}
+                  autoComplete="password"
+                  textContentType="password"
+                />
+              ) : pkErr ? (
+                <Text style={styles.pkErr}>{pkErr}</Text>
+              ) : null}
 
               {passkeyEnabled ? (
                 <Button
@@ -209,11 +266,15 @@ export default function SettingsScreen() {
                 />
               ) : (
                 <Button
-                  title="Enable device passkey"
+                  title={
+                    isUnlocked
+                      ? 'Enable device passkey'
+                      : 'Enable passkey (with password above)'
+                  }
                   icon="finger-print"
                   onPress={onEnablePasskey}
                   loading={pkBusy}
-                  disabled={!passkeySupported || isMock}
+                  disabled={isMock || !passkeySupported}
                 />
               )}
             </View>
@@ -320,7 +381,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusLine: { ...typography.subhead, color: colors.text, flex: 1, marginRight: 8 },
-  badges: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' },
+  badges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+  },
   section: {
     ...typography.footnote,
     textTransform: 'uppercase',
@@ -348,6 +415,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   unlockTitle: { ...typography.headline, marginBottom: 4 },
+  steps: {
+    marginTop: 10,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.bgInput ?? colors.fill,
+  },
+  stepTitle: { ...typography.footnote, fontWeight: '600', marginBottom: 6, color: colors.text },
+  stepLine: { ...typography.caption1, color: colors.textSecondary, marginBottom: 4, lineHeight: 18 },
+  em: { fontWeight: '700', color: colors.text },
+  link: { color: colors.tint, textDecorationLine: 'underline' },
   pkStatus: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -358,4 +436,5 @@ const styles = StyleSheet.create({
   pkStatusLabel: { ...typography.subhead },
   pkMeta: { ...typography.caption2, marginBottom: 8 },
   pkWarn: { ...typography.caption1, color: colors.orange, marginBottom: 8, lineHeight: 18 },
+  pkErr: { ...typography.footnote, color: colors.danger, marginBottom: 10 },
 });

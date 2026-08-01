@@ -70,10 +70,14 @@ type WalletContextValue = {
   passkeyMeta: PasskeyCredentialMeta | null;
   passkeySupport: PasskeySupport | null;
   refreshPasskeyState: () => Promise<void>;
-  /** Register platform passkey (requires correct password). */
-  enablePasskey: (password: string) => Promise<void>;
-  /** Remove passkey after password (+ passkey if still available). */
-  disablePasskey: (password: string) => Promise<void>;
+  /**
+   * Register device passkey.
+   * - If wallet is already unlocked, password may be omitted.
+   * - If locked, password is required to prove vault access.
+   */
+  enablePasskey: (password?: string) => Promise<void>;
+  /** Remove passkey. Password required if locked; optional if unlocked. */
+  disablePasskey: (password?: string) => Promise<void>;
   sendGnot: (to: string, amountGnot: string, memo?: string) => Promise<LocalTxRecord>;
   callRealm: (
     pkgPath: string,
@@ -261,47 +265,66 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   );
 
   const enablePasskey = useCallback(
-    async (password: string) => {
+    async (password?: string) => {
       if (!activeAccount) throw new Error('No active account');
       if (client.isMock) throw new Error('Passkeys are not available in mock mode');
+
       const c = client as WebGnoClient;
-      if (typeof c.verifyPassword === 'function') {
-        await c.verifyPassword(activeAccount.name, password);
-      } else if (typeof c.unlockAccount === 'function') {
-        // Fallback: full unlock validates password
-        await c.unlockAccount(activeAccount.name, password);
-        setUnlockedTick((t) => t + 1);
-      } else {
-        throw new Error('Password verification not available on this client');
+      const unlocked =
+        typeof c.isUnlocked === 'function' ? c.isUnlocked(activeAccount.name) : false;
+
+      // Prove vault access: password, or already-unlocked session
+      if (password && password.length > 0) {
+        if (typeof c.verifyPassword === 'function') {
+          await c.verifyPassword(activeAccount.name, password);
+        } else if (typeof c.unlockAccount === 'function') {
+          await c.unlockAccount(activeAccount.name, password);
+          setUnlockedTick((t) => t + 1);
+        }
+      } else if (!unlocked) {
+        throw new Error(
+          'Enter your wallet password below, or unlock the wallet first, then enable passkey.',
+        );
       }
+
       const support = await getPasskeySupport();
+      setPasskeySupport(support);
       if (!support.supported) {
         throw new Error(support.reason || 'Passkeys not supported on this device');
       }
+
+      // Must run in direct response to user click (browser user-gesture)
       const meta = await registerPasskey(activeAccount.name);
       await storage.setPasskey(meta);
       setPasskeyMeta(meta);
-      setPasskeySupport(support);
     },
     [activeAccount, client],
   );
 
   const disablePasskey = useCallback(
-    async (password: string) => {
+    async (password?: string) => {
       if (!activeAccount) throw new Error('No active account');
       const c = client as WebGnoClient;
-      if (typeof c.verifyPassword === 'function') {
-        await c.verifyPassword(activeAccount.name, password);
-      } else if (typeof c.unlockAccount === 'function') {
-        await c.unlockAccount(activeAccount.name, password);
-        setUnlockedTick((t) => t + 1);
+      const unlocked =
+        typeof c.isUnlocked === 'function' ? c.isUnlocked(activeAccount.name) : false;
+
+      if (password && password.length > 0) {
+        if (typeof c.verifyPassword === 'function') {
+          await c.verifyPassword(activeAccount.name, password);
+        } else if (typeof c.unlockAccount === 'function') {
+          await c.unlockAccount(activeAccount.name, password);
+          setUnlockedTick((t) => t + 1);
+        }
+      } else if (!unlocked) {
+        throw new Error('Enter your wallet password to disable passkey, or unlock first.');
       }
+
       const existing = await storage.getPasskey(activeAccount.name);
       if (existing) {
         try {
           await authenticatePasskey(existing);
         } catch {
-          // Allow disable with password alone if device passkey was revoked/cleared
+          // Allow disable with password / unlocked session if OS credential was removed
         }
       }
       await storage.removePasskey(activeAccount.name);
