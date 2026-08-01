@@ -28,10 +28,27 @@ import {
   fetchAllBalances,
   type CoinBalance,
 } from '@/services/rpcBalance';
+import {
+  fetchTokenPrices,
+  formatUsd,
+  valueUsd,
+  type TokenPrice,
+} from '@/services/tokenPrices';
 import { colors, layout, spacing, typography } from '@/theme';
 import { shortAddress, ugnotToGnotDisplay } from '@/utils/format';
 
-const POLL_MS = 12_000;
+const POLL_MS = 15_000;
+
+const TOKEN_COLORS: Record<string, string> = {
+  GNOT: colors.primary,
+  WUGNOT: colors.tint,
+  GNS: '#3DDC97',
+  USDC: '#2775CA',
+  USDT: '#26A17B',
+  DAI: '#F5AC37',
+  ATOM: '#2E3148',
+  BTC: '#F7931A',
+};
 
 export default function HomeScreen() {
   const { navigateRoot } = useRootNavigation();
@@ -39,6 +56,7 @@ export default function HomeScreen() {
     useWallet();
   const [ugnot, setUgnot] = useState('0');
   const [coins, setCoins] = useState<CoinBalance[]>([]);
+  const [prices, setPrices] = useState<Record<string, TokenPrice>>({});
   const [loadError, setLoadError] = useState<string | undefined>();
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -60,16 +78,14 @@ export default function HomeScreen() {
             decimals: t.decimals,
           }));
 
-        // Prefer dedicated multi-asset RPC helper (browser-safe)
-        const snap = await fetchAllBalances(
-          network.remote,
-          activeAccount.address,
-          network.chainId,
-          extra,
-        );
+        const [snap, priceMap] = await Promise.all([
+          fetchAllBalances(network.remote, activeAccount.address, network.chainId, extra, {
+            includeZeroGrc20: true,
+          }),
+          fetchTokenPrices(network.remote, network.chainId).catch(() => ({}) as Record<string, TokenPrice>),
+        ]);
 
         if (snap.error) {
-          // Fallback single-denom via client
           const bal = await client.queryBalance(activeAccount.address);
           setUgnot(bal.ugnot);
           setCoins(
@@ -92,6 +108,7 @@ export default function HomeScreen() {
           setCoins(snap.coins);
           setLoadError(undefined);
         }
+        setPrices(priceMap);
         setLastUpdated(Date.now());
       } catch (e) {
         setLoadError(e instanceof Error ? e.message : String(e));
@@ -146,22 +163,34 @@ export default function HomeScreen() {
     ? `Updated ${new Date(lastUpdated).toLocaleTimeString()}`
     : 'Loading…';
 
-  // Token rows: all non-ugnot coins + ensure GNOT row exists
+  // Token rows: all coins (native + watched GRC20 catalog)
   const tokenRows: CoinBalance[] =
     coins.length > 0
       ? coins
-      : ugnot !== '0'
-        ? [
-            {
-              denom: 'ugnot',
-              amount: ugnot,
-              symbol: 'GNOT',
-              decimals: 6,
-              display: ugnotToGnotDisplay(ugnot).replace(/,/g, ''),
-              kind: 'native',
-            },
-          ]
-        : [];
+      : [
+          {
+            denom: 'ugnot',
+            amount: ugnot,
+            symbol: 'GNOT',
+            decimals: 6,
+            display: ugnotToGnotDisplay(ugnot).replace(/,/g, ''),
+            kind: 'native',
+          },
+        ];
+
+  const portfolioUsd = tokenRows.reduce(
+    (sum, c) => sum + valueUsd(c.display, prices[c.symbol]?.priceUsd),
+    0,
+  );
+  const gnotPrice = prices.GNOT?.priceUsd;
+  const portfolioLabel =
+    portfolioUsd > 0
+      ? formatUsd(portfolioUsd, { compact: true })
+      : gnotPrice
+        ? formatUsd(valueUsd(ugnotToGnotDisplay(ugnot).replace(/,/g, ''), gnotPrice), {
+            compact: true,
+          })
+        : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -205,15 +234,27 @@ export default function HomeScreen() {
 
         <View style={styles.balanceCard}>
           <Text style={styles.accountName}>{activeAccount.name}</Text>
-          <Text style={styles.balance} accessibilityLabel={`${ugnotToGnotDisplay(ugnot)} GNOT`}>
-            {ugnotToGnotDisplay(ugnot)}
-            <Text style={styles.balanceUnit}> GNOT</Text>
-          </Text>
+          {portfolioLabel ? (
+            <>
+              <Text style={styles.balance} accessibilityLabel={`Portfolio ${portfolioLabel}`}>
+                {portfolioLabel}
+              </Text>
+              <Text style={styles.portfolioSub}>
+                Portfolio (test USDC) · {ugnotToGnotDisplay(ugnot)} GNOT
+                {gnotPrice ? ` · ${formatUsd(gnotPrice)}/GNOT` : ''}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.balance} accessibilityLabel={`${ugnotToGnotDisplay(ugnot)} GNOT`}>
+              {ugnotToGnotDisplay(ugnot)}
+              <Text style={styles.balanceUnit}> GNOT</Text>
+            </Text>
+          )}
           <Text style={styles.liveMeta}>
-            {network.chainId} · {liveLabel} · auto-refresh {POLL_MS / 1000}s
+            {network.chainId} · {liveLabel} · prices via GnoSwap
           </Text>
           {loadError ? <Text style={styles.unknown}>Balance error: {loadError}</Text> : null}
-          {!loadError && ugnot === '0' && tokenRows.length === 0 ? (
+          {!loadError && ugnot === '0' && tokenRows.every((t) => t.amount === '0') ? (
             <Text style={styles.unknown}>
               Balance 0 on {network.name}. Fund via faucet if needed.
             </Text>
@@ -257,46 +298,44 @@ export default function HomeScreen() {
         </Row>
 
         <Spacer h={16} />
-        <Text style={styles.section}>Assets</Text>
+        <Row style={styles.sectionRow}>
+          <Text style={styles.section}>Assets</Text>
+          <Text style={styles.sectionHint}>{tokenRows.length} tokens · USD ≈ GnoSwap USDC</Text>
+        </Row>
         <View style={styles.list}>
-          {tokenRows.length === 0 ? (
-            <View style={styles.tokenRow}>
-              <View style={[styles.tokenIcon, { backgroundColor: colors.primary + '33' }]}>
-                <Text style={styles.tokenIconText}>G</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.tokenSym}>GNOT</Text>
-                <Text style={styles.tokenSub}>ugnot · native</Text>
-              </View>
-              <Text style={styles.tokenAmt}>0</Text>
-            </View>
-          ) : (
-            tokenRows.map((c, i) => (
+          {tokenRows.map((c, i) => {
+            const px = prices[c.symbol]?.priceUsd;
+            const val = valueUsd(c.display, px);
+            const accent = TOKEN_COLORS[c.symbol] ?? (c.kind === 'grc20' ? colors.purple : colors.primary);
+            return (
               <View
                 key={`${c.denom}-${c.pkgPath ?? ''}-${i}`}
                 style={[styles.tokenRow, i < tokenRows.length - 1 && styles.tokenBorder]}
               >
-                <View
-                  style={[
-                    styles.tokenIcon,
-                    {
-                      backgroundColor:
-                        c.kind === 'grc20' ? colors.purple + '33' : colors.primary + '33',
-                    },
-                  ]}
-                >
-                  <Text style={styles.tokenIconText}>{c.symbol.slice(0, 2)}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.tokenSym}>{c.symbol}</Text>
-                  <Text style={styles.tokenSub} numberOfLines={1}>
-                    {c.kind === 'grc20' ? c.pkgPath ?? 'GRC20' : `${c.denom} · native`}
+                <View style={[styles.tokenIcon, { backgroundColor: accent + '33' }]}>
+                  <Text style={[styles.tokenIconText, { color: accent }]}>
+                    {c.symbol.slice(0, 2)}
                   </Text>
                 </View>
-                <Text style={styles.tokenAmt}>{c.display}</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.tokenSym}>{c.symbol}</Text>
+                  <Text style={styles.tokenSub} numberOfLines={1}>
+                    {px && px > 0
+                      ? `${formatUsd(px)} · ${c.kind === 'grc20' ? 'GRC20' : 'native'}`
+                      : c.kind === 'grc20'
+                        ? c.pkgPath?.split('/').slice(-2).join('/') ?? 'GRC20'
+                        : `${c.denom} · native`}
+                  </Text>
+                </View>
+                <View style={styles.tokenRight}>
+                  <Text style={styles.tokenAmt}>{c.display}</Text>
+                  <Text style={styles.tokenVal}>
+                    {px && px > 0 ? formatUsd(val) : '—'}
+                  </Text>
+                </View>
               </View>
-            ))
-          )}
+            );
+          })}
         </View>
 
         <Spacer h={16} />
@@ -420,12 +459,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
   },
+  portfolioSub: {
+    ...typography.footnote,
+    color: colors.textSecondary,
+    marginTop: 6,
+    textAlign: 'center',
+  },
   liveMeta: {
     ...typography.caption2,
     marginTop: 8,
     color: colors.textTertiary,
   },
   unknown: { ...typography.caption1, color: colors.orange, marginTop: 8, textAlign: 'center' },
+  sectionRow: {
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sectionHint: { ...typography.caption2, color: colors.textTertiary },
+  tokenRight: { alignItems: 'flex-end' },
+  tokenVal: { ...typography.caption2, color: colors.textSecondary, marginTop: 2 },
   addrRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -446,7 +499,6 @@ const styles = StyleSheet.create({
     ...typography.footnote,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
-    marginBottom: 8,
     marginLeft: 4,
   },
   list: {

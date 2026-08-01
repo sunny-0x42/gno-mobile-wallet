@@ -3,6 +3,8 @@
  * Used as primary path on web; more reliable than gno-js-client's Buffer-based parser.
  */
 
+import { defaultWatchedGrc20 } from '@/services/tokenPrices';
+
 export type CoinBalance = {
   denom: string;
   amount: string; // integer string in base units
@@ -165,24 +167,15 @@ export async function fetchGrc20Balance(
   }
 }
 
-/** Default watched GRC20 tokens per chain (best-effort; missing realm → skip). */
+/** Default watched GRC20 tokens per chain (GnoSwap catalog on Topaz). */
 export const DEFAULT_WATCHED_TOKENS: Record<
   string,
   { pkgPath: string; symbol: string; decimals: number }[]
 > = {
-  'topaz-1': [
-    { pkgPath: 'gno.land/r/gnoland/wugnot', symbol: 'WUGNOT', decimals: 6 },
-    { pkgPath: 'gno.land/r/demo/foo20', symbol: 'FOO', decimals: 6 },
-  ],
-  'test-13': [
-    { pkgPath: 'gno.land/r/gnoland/wugnot', symbol: 'WUGNOT', decimals: 6 },
-  ],
-  staging: [
-    { pkgPath: 'gno.land/r/gnoland/wugnot', symbol: 'WUGNOT', decimals: 6 },
-  ],
-  gnoland1: [
-    { pkgPath: 'gno.land/r/gnoland/wugnot', symbol: 'WUGNOT', decimals: 6 },
-  ],
+  'topaz-1': defaultWatchedGrc20('topaz-1'),
+  'test-13': [{ pkgPath: 'gno.land/r/gnoland/wugnot', symbol: 'WUGNOT', decimals: 6 }],
+  staging: [{ pkgPath: 'gno.land/r/gnoland/wugnot', symbol: 'WUGNOT', decimals: 6 }],
+  gnoland1: [{ pkgPath: 'gno.land/r/gnoland/wugnot', symbol: 'WUGNOT', decimals: 6 }],
 };
 
 export async function fetchAllBalances(
@@ -190,30 +183,72 @@ export async function fetchAllBalances(
   address: string,
   chainId: string,
   extraTokens: { pkgPath: string; symbol: string; decimals: number }[] = [],
+  opts?: { includeZeroGrc20?: boolean },
 ): Promise<{ coins: CoinBalance[]; ugnot: string; error?: string }> {
+  const includeZero = opts?.includeZeroGrc20 !== false;
   try {
     const natives = await fetchNativeBalances(rpcUrl, address);
     const ugnot = natives.find((c) => c.denom === 'ugnot')?.amount ?? '0';
 
-    const watched = [
-      ...(DEFAULT_WATCHED_TOKENS[chainId] ?? []),
+    // Ensure GNOT native row always present
+    let nativeList = [...natives];
+    if (!nativeList.some((c) => c.denom === 'ugnot')) {
+      nativeList.unshift({
+        denom: 'ugnot',
+        amount: '0',
+        symbol: 'GNOT',
+        decimals: 6,
+        display: '0',
+        kind: 'native',
+      });
+    }
+
+    const watchedRaw = [
+      ...(DEFAULT_WATCHED_TOKENS[chainId] ?? defaultWatchedGrc20(chainId)),
       ...extraTokens,
     ];
+    // Dedupe by pkgPath
+    const seen = new Set<string>();
+    const watched = watchedRaw.filter((t) => {
+      if (seen.has(t.pkgPath)) return false;
+      seen.add(t.pkgPath);
+      return true;
+    });
+
     const grc20: CoinBalance[] = [];
     await Promise.all(
       watched.map(async (t) => {
         const bal = await fetchGrc20Balance(rpcUrl, t.pkgPath, address, t);
-        if (bal && bal.amount !== '0') grc20.push(bal);
-        else if (bal) grc20.push(bal); // show zeros for known tokens? skip zeros for less noise
+        if (!bal) {
+          // Still show catalog stub at zero so user sees supported tokens
+          if (includeZero) {
+            grc20.push({
+              denom: t.symbol.toLowerCase(),
+              amount: '0',
+              symbol: t.symbol,
+              decimals: t.decimals,
+              display: '0',
+              kind: 'grc20',
+              pkgPath: t.pkgPath,
+            });
+          }
+          return;
+        }
+        if (includeZero || bal.amount !== '0') grc20.push(bal);
       }),
     );
-    // only non-zero grc20 to reduce clutter, keep zeros for first 2 defaults as stubs
-    const grc20Show = grc20.filter((c) => c.amount !== '0');
 
-    // natives first (ugnot highlighted), then grc20
+    // Non-zero first, then zeros; natives (GNOT) always first
+    grc20.sort((a, b) => {
+      const az = a.amount === '0' ? 1 : 0;
+      const bz = b.amount === '0' ? 1 : 0;
+      if (az !== bz) return az - bz;
+      return a.symbol.localeCompare(b.symbol);
+    });
+
     const coins = [
-      ...natives.sort((a, b) => (a.denom === 'ugnot' ? -1 : b.denom === 'ugnot' ? 1 : 0)),
-      ...grc20Show,
+      ...nativeList.sort((a, b) => (a.denom === 'ugnot' ? -1 : b.denom === 'ugnot' ? 1 : 0)),
+      ...grc20,
     ];
     return { coins, ugnot };
   } catch (e) {

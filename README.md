@@ -19,7 +19,8 @@ Inspired by [Adena](https://adena.app) (desktop extension). Independent project 
 | Device passkey 2FA (WebAuthn + password) | ✅ Web / HTTPS |
 | Multi-network (Topaz, Test13, Staging, Betanet, custom RPC) | ✅ |
 | Live GNOT balance (RPC `bank/balances`) | ✅ |
-| Multi-asset list (native + watched GRC20) | ✅ |
+| Multi-asset list + GnoSwap catalog (Topaz) | ✅ |
+| Token USD prices (GnoSwap → test USDC) | ✅ Topaz |
 | Send / receive GNOT | ✅ Web |
 | Realm `MsgCall` | ✅ Web |
 | **Quick Swap** (GnoSwap router, no WebView) | ✅ Topaz |
