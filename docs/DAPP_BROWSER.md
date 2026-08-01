@@ -1,23 +1,52 @@
-# In-app dApp browser & GnoSwap
+# Quick Swap (GnoSwap router) & in-app dApp browser
 
-## Overview
+## Why native Quick Swap?
 
-The wallet ships an **in-app browser** with an **Adena-compatible** `window.adena` bridge so dApps such as [GnoSwap](https://beta.gnoswap.io/) can request connection and transaction approval without the Chrome extension.
+GnoSwap’s web UI (`https://beta.gnoswap.io/`) often **cannot load or connect** inside the mobile wallet browser (WebView / iframe limits). The wallet therefore exposes a **native Quick Swap** that talks to the GnoSwap **router realm** with pure `MsgCall` — no WebView required.
 
-## User flow
+## Quick Swap (recommended)
 
-1. Open **Explore** (or Home → **Swap**).
-2. Launch **GnoSwap** — the app may switch to **Topaz** (`topaz-1`).
-3. In GnoSwap, choose **Connect → Adena**.
-4. Approve the connection sheet in this wallet.
-5. When GnoSwap builds a swap / LP tx, approve the **DoContract** sheet.
+### User flow
+
+1. Home → **Swap**, or Explore → **Quick Swap**.
+2. Wallet switches to **Topaz** (`topaz-1`) if needed.
+3. Pick pair (e.g. GNOT/WUGNOT → GNS), amount, slippage.
+4. Quote via `DrySwapRoute` (best fee tier among 100 / 500 / 3000 / 10000).
+5. Confirm → optional **Deposit** (wrap GNOT), **Approve** router, **ExactInSwapRoute**.
+
+### Implementation
+
+| Piece | Path |
+|-------|------|
+| Token catalog (Topaz pools) | `src/config/swapTokens.ts` |
+| Quote + plan builder | `src/services/gnoswapRouter.ts` |
+| UI | `src/screens/SwapScreen.tsx` |
+| Router realm | `gno.land/r/gnoswap/router` |
+| Router address (spender) | `g1vc883gshu5z7ytk5cdynhc8c2dh67pdp4cszkp` |
+
+Token IDs use GnoSwap registry form: `<pkg_path>.<SYMBOL>` (e.g. `gno.land/r/gnoland/wugnot.wugnot`).
+
+Swap steps when selling native GNOT:
+
+1. `gno.land/r/gnoland/wugnot.Deposit` with `send = N ugnot`
+2. `input.Approve(routerAddress, amount)`
+3. `router.ExactInSwapRoute(tokenIn, tokenOut, amountIn, route, 100, amountOutMin, deadline, referrer)`
+
+## In-app dApp browser (optional)
+
+The wallet still ships an **Adena-compatible** `window.adena` bridge for other dApps, and a best-effort open of the GnoSwap website.
+
+### Browser user flow
+
+1. Explore → **GnoSwap** (featured dApp).
+2. If the site loads: Connect → Adena → approve connection / DoContract sheets.
 
 Requirements:
 
 - A created/imported account
 - Vault **unlocked** (Settings → Unlock) before signing
 
-## Implementation
+### Browser implementation
 
 | Piece | Path |
 |-------|------|
@@ -33,12 +62,12 @@ Supported Adena methods (subset):
 - `DoContract` (`/bank.MsgSend`, `/vm.m_call`)
 - `SwitchNetwork` (built-in chains only)
 
-## Platform notes
+### Platform notes
 
 | Platform | Behavior |
 |----------|----------|
 | iOS / Android (dev build) | `react-native-webview` injects `window.adena` before page scripts |
-| Web / GitHub Pages | WebView falls back to iframe; bridge via `postMessage`. Some dApps may still expect a browser extension — use a native build for the best GnoSwap experience |
+| Web / GitHub Pages | WebView falls back to iframe; many SPA dApps (including GnoSwap) fail — **use Quick Swap** |
 
 ## Adding more dApps
 

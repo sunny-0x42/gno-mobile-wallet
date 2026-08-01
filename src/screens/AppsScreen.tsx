@@ -28,8 +28,8 @@ export default function AppsScreen() {
       <ScrollView contentContainerStyle={styles.pad} showsVerticalScrollIndicator={false}>
         <Text style={typography.largeTitle}>Explore</Text>
         <Muted>
-          Open gno.land dApps in the in-app browser. GnoSwap can connect via an Adena-compatible
-          wallet API built into this app.
+          Trade with the native GnoSwap router (no WebView), or open other gno.land dApps in the
+          in-app browser.
         </Muted>
 
         <View style={styles.networkHint}>
@@ -45,7 +45,32 @@ export default function AppsScreen() {
           </Text>
         </View>
 
-        <Text style={styles.section}>Featured</Text>
+        <Text style={styles.section}>Quick trade</Text>
+        <Pressable
+          onPress={() => navigateRoot('Swap')}
+          style={({ pressed }) => [styles.featured, pressed && { opacity: 0.85 }]}
+        >
+          <View style={[styles.featuredIcon, { backgroundColor: '#3DDC9733' }]}>
+            <Ionicons name="swap-horizontal" size={28} color="#3DDC97" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.featuredName}>Quick Swap</Text>
+            <Text style={styles.featuredDesc}>
+              Swap tokens on Topaz via GnoSwap router (DrySwapRoute + ExactInSwapRoute) — works when
+              the GnoSwap site cannot load in the wallet browser.
+            </Text>
+            <Text style={styles.featuredCta}>Open native swap →</Text>
+          </View>
+        </Pressable>
+
+        <Button
+          title="Quick Swap"
+          icon="swap-horizontal"
+          size="lg"
+          onPress={() => navigateRoot('Swap')}
+        />
+
+        <Text style={[styles.section, { marginTop: 20 }]}>Featured dApps</Text>
         {FEATURED_DAPPS.map((d) => (
           <Pressable
             key={d.id}
@@ -57,18 +82,15 @@ export default function AppsScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.featuredName}>{d.name}</Text>
-              <Text style={styles.featuredDesc}>{d.description}</Text>
+              <Text style={styles.featuredDesc}>
+                {d.id === 'gnoswap'
+                  ? 'Full GnoSwap UI in browser (may be unsupported on mobile WebView). Prefer Quick Swap above.'
+                  : d.description}
+              </Text>
               <Text style={styles.featuredCta}>Open in wallet →</Text>
             </View>
           </Pressable>
         ))}
-
-        <Button
-          title="Launch GnoSwap"
-          icon="swap-horizontal"
-          size="lg"
-          onPress={() => openDApp('gnoswap')}
-        />
 
         <Text style={[styles.section, { marginTop: 20 }]}>More</Text>
         <View style={styles.grid}>

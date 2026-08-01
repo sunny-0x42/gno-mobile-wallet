@@ -21,9 +21,10 @@ Inspired by [Adena](https://adena.app) (desktop extension). Independent project 
 | Multi-asset list (native + watched GRC20) | ✅ |
 | Send / receive GNOT | ✅ Web |
 | Realm `MsgCall` | ✅ Web |
+| **Quick Swap** (GnoSwap router, no WebView) | ✅ Topaz |
 | Multi-account | ✅ |
 | iOS / Android native shell | 🚧 Scaffold + EAS configs |
-| In-app dApp browser + Adena API (GnoSwap) | ✅ |
+| In-app dApp browser + Adena API | ✅ (GnoSwap site may not load in mobile WebView) |
 
 Default testnet: **Topaz** (`topaz-1`, `https://rpc.topaz.testnets.gno.land`).
 
@@ -114,10 +115,10 @@ gno-mobile-wallet/
 ├── docs/                   # Design notes & guides (English)
 ├── src/
 │   ├── components/         # Shared UI
-│   ├── config/networks.ts  # Built-in chains
-│   ├── provider/           # Wallet context
-│   ├── screens/            # App screens
-│   ├── services/           # RPC, web client, storage
+│   ├── config/             # Networks, dApps, GnoSwap token catalog
+│   ├── provider/           # Wallet + Adena host
+│   ├── screens/            # App screens (incl. native Swap)
+│   ├── services/           # RPC, web client, GnoSwap router, storage
 │   ├── theme/              # Design tokens
 │   └── utils/              # Mnemonic, vault, formatters
 ├── .github/workflows/      # CI + Pages deploy

@@ -28,6 +28,8 @@ export type RootStackParamList = {
     injectAdena?: boolean;
     preferredChainId?: string;
   };
+  /** Native GnoSwap router swap (no WebView) */
+  Swap: undefined;
 };
 
 export type MainTabParamList = {

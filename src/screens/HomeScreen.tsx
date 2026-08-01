@@ -252,14 +252,7 @@ export default function HomeScreen() {
             icon="swap-horizontal"
             label="Swap"
             color={colors.orange}
-            onPress={() =>
-              navigateRoot('DAppBrowser', {
-                url: 'https://beta.gnoswap.io/',
-                title: 'GnoSwap',
-                injectAdena: true,
-                preferredChainId: 'topaz-1',
-              })
-            }
+            onPress={() => navigateRoot('Swap')}
           />
         </Row>
 
