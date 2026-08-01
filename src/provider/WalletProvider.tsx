@@ -60,6 +60,7 @@ type WalletContextValue = {
     func: string,
     args: string[],
     sendUgnot?: string,
+    gasOpts?: { gasFee?: string; gasWanted?: bigint },
   ) => Promise<{ result: string; record: LocalTxRecord }>;
   addToken: (token: CustomToken) => Promise<void>;
   removeToken: (id: string) => Promise<void>;
@@ -253,8 +254,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   );
 
   const callRealm = useCallback(
-    async (pkgPath: string, func: string, args: string[], sendUgnot?: string) => {
+    async (
+      pkgPath: string,
+      func: string,
+      args: string[],
+      sendUgnot?: string,
+      gasOpts?: { gasFee?: string; gasWanted?: bigint },
+    ) => {
       if (!activeAccount) throw new Error('No active account');
+      const gasFee = gasOpts?.gasFee ?? DEFAULT_GAS.callFee;
+      const gasWanted = gasOpts?.gasWanted ?? DEFAULT_GAS.callGasWanted;
       const id = `tx_${Date.now()}`;
       const record: LocalTxRecord = {
         id,
@@ -275,8 +284,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           pkgPath,
           func,
           args,
-          DEFAULT_GAS.callFee,
-          DEFAULT_GAS.callGasWanted,
+          gasFee,
+          gasWanted,
           sendUgnot ? `${sendUgnot}ugnot` : undefined,
         );
         await storage.updateHistory(id, { status: 'success' });
@@ -285,9 +294,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         return { result: res.raw, record: updated.find((t) => t.id === id)! };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        await storage.updateHistory(id, { status: 'failed', error: msg });
+        const hint =
+          /out of gas/i.test(msg)
+            ? ` (gas_wanted=${gasWanted.toString()} may be too low for this call — try again or raise swap gas)`
+            : '';
+        const full = msg + hint;
+        await storage.updateHistory(id, { status: 'failed', error: full });
         setHistory(await storage.getHistory());
-        throw e;
+        throw new Error(full);
       }
     },
     [activeAccount, client, network],

@@ -11,6 +11,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, NavHeader, Screen, Spacer } from '@/components/ui';
+import { DEFAULT_GAS } from '@/config/networks';
 import { SWAP_FEE_TIERS } from '@/config/swapTokens';
 import { tokensForChain, type SwapToken } from '@/config/swapTokens';
 import {
@@ -171,19 +172,43 @@ export default function SwapScreen({ navigation }: Props) {
 
     setSwapping(true);
     try {
+      // Gas: GnoSwap CLMM swaps need far more than default call gas (5–20M).
+      // "Out of gas" = gas_wanted too low, not missing GNOT for fees.
+      const wrapGas = {
+        gasFee: DEFAULT_GAS.wrapFee,
+        gasWanted: DEFAULT_GAS.wrapGasWanted,
+      };
+      const approveGas = {
+        gasFee: DEFAULT_GAS.approveFee,
+        gasWanted: DEFAULT_GAS.approveGasWanted,
+      };
+      const swapGas = {
+        gasFee: DEFAULT_GAS.swapFee,
+        gasWanted: DEFAULT_GAS.swapGasWanted,
+      };
+
       // 1) Wrap GNOT → WUGNOT if needed
       if (plan.wrapUgnot) {
-        await callRealm(WUGNOT_PKG, 'Deposit', [], plan.wrapUgnot);
+        await callRealm(WUGNOT_PKG, 'Deposit', [], plan.wrapUgnot, wrapGas);
       }
 
       // 2) Approve router
-      await callRealm(plan.approve.pkgPath, 'Approve', [
-        plan.approve.spender,
-        plan.approve.amount,
-      ]);
+      await callRealm(
+        plan.approve.pkgPath,
+        'Approve',
+        [plan.approve.spender, plan.approve.amount],
+        undefined,
+        approveGas,
+      );
 
-      // 3) Swap
-      const res = await callRealm(plan.swap.pkgPath, plan.swap.func, plan.swap.args);
+      // 3) Swap (highest gas)
+      const res = await callRealm(
+        plan.swap.pkgPath,
+        plan.swap.func,
+        plan.swap.args,
+        undefined,
+        swapGas,
+      );
       await alertAsync(
         'Swap submitted',
         res.result?.slice(0, 400) || 'Transaction sent via GnoSwap router.',
@@ -214,7 +239,9 @@ export default function SwapScreen({ navigation }: Props) {
     <Screen scroll>
       <NavHeader title="Swap" onBack={() => navigation.goBack()} large />
       <Text style={styles.sub}>
-        GnoSwap router · {network.name} ({network.chainId}). No WebView — direct MsgCall.
+        GnoSwap router · {network.name} ({network.chainId}). No WebView — direct MsgCall. Gas
+        wanted for swap: {(Number(DEFAULT_GAS.swapGasWanted) / 1e6).toFixed(0)}M · fee{' '}
+        {DEFAULT_GAS.swapFee}.
       </Text>
 
       <View style={styles.card}>
