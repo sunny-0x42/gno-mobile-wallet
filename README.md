@@ -86,13 +86,15 @@ GitHub **cannot** run a long-lived Metro/dev server for free. Publish a **static
 | **GitHub Pages** | [`.github/workflows/deploy-pages.yml`](./.github/workflows/deploy-pages.yml) | `/gno-mobile-wallet/` |
 | Vercel / Cloudflare Pages | same `dist/` export | usually `/` |
 
-### Netlify (community trial)
+### Live community demo (Netlify)
 
-1. [app.netlify.com](https://app.netlify.com) → **Add new site → Import from GitHub**.
-2. Select this repo. Build settings come from `netlify.toml` (`publish = dist`).
-3. Deploy. Each push to `main` redeploys automatically.
+**https://gno-mobile-wallet.netlify.app**
 
-See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for CLI deploy and security notes.
+- Admin: https://app.netlify.com/projects/gno-mobile-wallet  
+- Build config: [`netlify.toml`](./netlify.toml) (`publish = dist`, base path `/`)  
+- To auto-redeploy on every `main` push: Netlify → site → **Project configuration → Build & deploy → Link repository** → choose `sunny-0x42/gno-mobile-wallet`.
+
+See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for CLI redeploy and security notes.
 
 ### GitHub Pages
 
