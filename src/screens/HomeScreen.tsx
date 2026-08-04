@@ -23,6 +23,7 @@ import {
   Spacer,
 } from '@/components/ui';
 import SecureContextBanner from '@/components/SecureContextBanner';
+import TokenIcon from '@/components/TokenIcon';
 import { useRootNavigation } from '@/hooks/useRootNavigation';
 import { useWallet } from '@/provider/WalletProvider';
 import {
@@ -32,19 +33,8 @@ import {
 import { colors, layout, spacing, typography } from '@/theme';
 import { shortAddress, ugnotToGnotDisplay } from '@/utils/format';
 
-/** Experimental: balances only — no price/oracle RPC (faster load). */
+/** Balances only — no price/oracle RPC (faster load). */
 const POLL_MS = 15_000;
-
-const TOKEN_COLORS: Record<string, string> = {
-  GNOT: colors.primary,
-  WUGNOT: colors.tint,
-  GNS: '#3DDC97',
-  USDC: '#2775CA',
-  USDT: '#26A17B',
-  DAI: '#F5AC37',
-  ATOM: '#2E3148',
-  BTC: '#F7931A',
-};
 
 export default function HomeScreen() {
   const { navigateRoot } = useRootNavigation();
@@ -221,15 +211,8 @@ export default function HomeScreen() {
             {ugnotToGnotDisplay(ugnot)}
             <Text style={styles.balanceUnit}> GNOT</Text>
           </Text>
-          <Text style={styles.liveMeta}>
-            {network.chainId} · {liveLabel} · balances only
-          </Text>
-          {loadError ? <Text style={styles.unknown}>Balance error: {loadError}</Text> : null}
-          {!loadError && ugnot === '0' && tokenRows.every((t) => t.amount === '0') ? (
-            <Text style={styles.unknown}>
-              Balance 0 on {network.name}. Fund via faucet if needed.
-            </Text>
-          ) : null}
+          <Text style={styles.liveMeta}>{liveLabel}</Text>
+          {loadError ? <Text style={styles.unknown}>{loadError}</Text> : null}
 
           <Pressable onPress={copyAddress} style={styles.addrRow}>
             <Text style={styles.addr}>{shortAddress(activeAccount.address, 10, 8)}</Text>
@@ -269,36 +252,18 @@ export default function HomeScreen() {
         </Row>
 
         <Spacer h={16} />
-        <Row style={styles.sectionRow}>
-          <Text style={styles.section}>Assets</Text>
-          <Text style={styles.sectionHint}>{tokenRows.length} tokens</Text>
-        </Row>
+        <Text style={styles.section}>Assets</Text>
         <View style={styles.list}>
-          {tokenRows.map((c, i) => {
-            const accent =
-              TOKEN_COLORS[c.symbol] ?? (c.kind === 'grc20' ? colors.purple : colors.primary);
-            return (
-              <View
-                key={`${c.denom}-${c.pkgPath ?? ''}-${i}`}
-                style={[styles.tokenRow, i < tokenRows.length - 1 && styles.tokenBorder]}
-              >
-                <View style={[styles.tokenIcon, { backgroundColor: accent + '33' }]}>
-                  <Text style={[styles.tokenIconText, { color: accent }]}>
-                    {c.symbol.slice(0, 2)}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.tokenSym}>{c.symbol}</Text>
-                  <Text style={styles.tokenSub} numberOfLines={1}>
-                    {c.kind === 'grc20'
-                      ? c.pkgPath?.split('/').slice(-2).join('/') ?? 'GRC20'
-                      : `${c.denom} · native`}
-                  </Text>
-                </View>
-                <Text style={styles.tokenAmt}>{c.display}</Text>
-              </View>
-            );
-          })}
+          {tokenRows.map((c, i) => (
+            <View
+              key={`${c.denom}-${c.pkgPath ?? ''}-${i}`}
+              style={[styles.tokenRow, i < tokenRows.length - 1 && styles.tokenBorder]}
+            >
+              <TokenIcon symbol={c.symbol} size={36} />
+              <Text style={[styles.tokenSym, { flex: 1 }]}>{c.symbol}</Text>
+              <Text style={styles.tokenAmt}>{c.display}</Text>
+            </View>
+          ))}
         </View>
 
         <Spacer h={16} />
@@ -326,9 +291,6 @@ export default function HomeScreen() {
           />
         </View>
 
-        <Text style={styles.footer}>
-          Pull to refresh · RPC {network.remote.replace('https://', '')}
-        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -428,12 +390,6 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
   unknown: { ...typography.caption1, color: colors.orange, marginTop: 8, textAlign: 'center' },
-  sectionRow: {
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  sectionHint: { ...typography.caption2, color: colors.textTertiary },
   addrRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -455,6 +411,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginLeft: 4,
+    marginBottom: 8,
   },
   list: {
     backgroundColor: colors.bgElevated,
@@ -472,16 +429,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.separator,
   },
-  tokenIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tokenIconText: { ...typography.caption1, fontWeight: '700', color: colors.text },
   tokenSym: { ...typography.headline, fontSize: 16 },
-  tokenSub: { ...typography.caption2, marginTop: 2 },
   tokenAmt: { ...typography.headline, fontSize: 16 },
   shortcut: {
     flexDirection: 'row',
@@ -503,9 +451,4 @@ const styles = StyleSheet.create({
   },
   shortcutTitle: { ...typography.body, flex: 1 },
   shortcutValue: { ...typography.body, color: colors.textSecondary },
-  footer: {
-    ...typography.caption2,
-    textAlign: 'center',
-    marginTop: spacing.xl,
-  },
 });

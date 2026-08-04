@@ -11,6 +11,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, NavHeader, Screen, Spacer } from '@/components/ui';
+import TokenIcon from '@/components/TokenIcon';
 import { DEFAULT_GAS, formatUgnotFee, gasFeeForWanted } from '@/config/networks';
 import { SWAP_FEE_TIERS } from '@/config/swapTokens';
 import { tokensForChain, type SwapToken } from '@/config/swapTokens';
@@ -175,19 +176,16 @@ export default function SwapScreen({ navigation }: Props) {
       gasWanted: DEFAULT_GAS.swapGasWanted,
     };
     const steps = plan.wrapUgnot ? 3 : 2;
-    const feeParts = [
-      plan.wrapUgnot ? `wrap ${formatUgnotFee(wrapGas.gasFee)}` : null,
-      `approve ${formatUgnotFee(approveGas.gasFee)}`,
-      `swap ${formatUgnotFee(swapGas.gasFee)}`,
-    ].filter(Boolean);
-
+    const ug = (f: string) => BigInt(f.replace(/ugnot$/i, '') || '0');
+    const totalFeeUg =
+      (plan.wrapUgnot ? ug(wrapGas.gasFee) : 0n) +
+      ug(approveGas.gasFee) +
+      ug(swapGas.gasFee);
     const ok = await confirmAsync(
       'Confirm swap',
-      `Swap ${amountIn} ${useNative && tokenIn.wrapsNative ? 'GNOT' : tokenIn.symbol} → ~${fromBaseUnits(quote.amountOut, tokenOut.decimals)} ${tokenOut.symbol}\n` +
+      `${amountIn} ${useNative && tokenIn.wrapsNative ? 'GNOT' : tokenIn.symbol} → ~${fromBaseUnits(quote.amountOut, tokenOut.decimals)} ${tokenOut.symbol}\n` +
         `Min out: ${fromBaseUnits(plan.amountOutMin, tokenOut.decimals)} (${slippagePct}% slip)\n` +
-        `Pool fee tier: ${quote.fee}\n` +
-        `Network gas (~${steps} txs): ${feeParts.join(' + ')}\n` +
-        `(Topaz min ≈ gas_wanted/1000 ugnot; not a flat 1 GNOT fee)`,
+        `Gas ~${formatUgnotFee(`${totalFeeUg}ugnot`)} (${steps} txs)`,
     );
     if (!ok) return;
 
@@ -242,26 +240,19 @@ export default function SwapScreen({ navigation }: Props) {
     setQuote(null);
   };
 
+  const displayInSym = useNative && tokenIn.wrapsNative ? 'GNOT' : tokenIn.symbol;
+
   return (
     <Screen scroll>
       <NavHeader title="Swap" onBack={() => navigation.goBack()} large />
-      <Text style={styles.sub}>
-        GnoSwap router · {network.name} ({network.chainId}). Direct MsgCall. Swap gas limit{' '}
-        {(Number(DEFAULT_GAS.swapGasWanted) / 1e6).toFixed(0)}M · network fee ≈{' '}
-        {formatUgnotFee(gasFeeForWanted(DEFAULT_GAS.swapGasWanted))}
-        {useNative && tokenIn.wrapsNative
-          ? ` (+ wrap/approve ≈ ${formatUgnotFee(gasFeeForWanted(DEFAULT_GAS.wrapGasWanted + DEFAULT_GAS.approveGasWanted))})`
-          : ` (+ approve ≈ ${formatUgnotFee(gasFeeForWanted(DEFAULT_GAS.approveGasWanted))})`}
-        .
-      </Text>
+      <Text style={styles.sub}>GnoSwap · {network.name}</Text>
 
       <View style={styles.card}>
         <Text style={styles.label}>You pay</Text>
         <View style={styles.row}>
           <Pressable style={styles.tokenBtn} onPress={() => setPicker('in')}>
-            <Text style={styles.tokenSym}>
-              {useNative && tokenIn.wrapsNative ? 'GNOT' : tokenIn.symbol}
-            </Text>
+            <TokenIcon symbol={displayInSym} size={24} />
+            <Text style={styles.tokenSym}>{displayInSym}</Text>
             <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
           </Pressable>
           <Input
@@ -275,7 +266,7 @@ export default function SwapScreen({ navigation }: Props) {
         <Text style={styles.bal}>
           Balance:{' '}
           {fromBaseUnits(balIn, useNative && tokenIn.wrapsNative ? 6 : tokenIn.decimals)}{' '}
-          {useNative && tokenIn.wrapsNative ? 'GNOT' : tokenIn.symbol}
+          {displayInSym}
         </Text>
         {tokenIn.wrapsNative ? (
           <Pressable
@@ -287,7 +278,7 @@ export default function SwapScreen({ navigation }: Props) {
               size={18}
               color={colors.primary}
             />
-            <Text style={styles.toggleText}>Use native GNOT (auto-wrap to WUGNOT)</Text>
+            <Text style={styles.toggleText}>Use native GNOT (auto-wrap)</Text>
           </Pressable>
         ) : null}
       </View>
@@ -297,9 +288,10 @@ export default function SwapScreen({ navigation }: Props) {
       </Pressable>
 
       <View style={styles.card}>
-        <Text style={styles.label}>You receive (est.)</Text>
+        <Text style={styles.label}>You receive</Text>
         <View style={styles.row}>
           <Pressable style={styles.tokenBtn} onPress={() => setPicker('out')}>
+            <TokenIcon symbol={tokenOut.symbol} size={24} />
             <Text style={styles.tokenSym}>{tokenOut.symbol}</Text>
             <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
           </Pressable>
@@ -318,23 +310,21 @@ export default function SwapScreen({ navigation }: Props) {
 
       <View style={styles.metaCard}>
         <Text style={styles.metaLine}>
-          Quote fee tier: {quote ? quote.fee : '—'}{' '}
+          Fee{' '}
           {quote
-            ? `(${SWAP_FEE_TIERS.find((f) => f.fee === quote.fee)?.label ?? ''})`
-            : ''}
-          {quoting ? ' · updating…' : ''}
-        </Text>
-        <Text style={styles.metaLine} numberOfLines={2}>
-          Route: {quote?.route ?? '—'}
+            ? SWAP_FEE_TIERS.find((f) => f.fee === quote.fee)?.label ?? String(quote.fee)
+            : '—'}
+          {quoting ? ' · …' : ''}
+          {' · '}Slippage
         </Text>
         <View style={styles.slipRow}>
-          <Text style={styles.label}>Slippage %</Text>
           <Input
             value={slippage}
             onChangeText={setSlippage}
             keyboardType="decimal-pad"
             style={styles.slipInput}
           />
+          <Text style={styles.metaLine}>%</Text>
         </View>
       </View>
 
@@ -345,7 +335,7 @@ export default function SwapScreen({ navigation }: Props) {
 
       <Spacer h={12} />
       <Button
-        title={swapping ? 'Swapping…' : 'Swap via GnoSwap router'}
+        title={swapping ? 'Swapping…' : 'Swap'}
         icon="swap-horizontal"
         size="lg"
         loading={swapping || quoting}
@@ -365,8 +355,11 @@ export default function SwapScreen({ navigation }: Props) {
                   style={styles.tokenRow}
                   onPress={() => pickToken(t)}
                 >
-                  <Text style={styles.tokenSym}>{t.symbol}</Text>
-                  <Text style={styles.tokenName}>{t.name}</Text>
+                  <TokenIcon symbol={t.symbol} size={28} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tokenSym}>{t.symbol}</Text>
+                    <Text style={styles.tokenName}>{t.name}</Text>
+                  </View>
                 </Pressable>
               ))}
             </ScrollView>
@@ -391,7 +384,7 @@ const styles = StyleSheet.create({
   tokenBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     backgroundColor: colors.bgInput,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -439,6 +432,9 @@ const styles = StyleSheet.create({
   },
   modalTitle: { ...typography.title3, marginBottom: 12 },
   tokenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.separator,
