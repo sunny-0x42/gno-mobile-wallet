@@ -60,32 +60,63 @@ export const UGNOT_PER_GNOT = 1_000_000;
 /**
  * Default gas for wallet txs.
  *
- * Topaz `auth/gasprice` is typically ~1ugnot per 1000 gas units — fee must cover
- * gas_wanted * price. "Out of gas" means gas_wanted was too low for execution
- * (not that the wallet lacks GNOT for the fee).
+ * Topaz `auth/gasprice` ≈ `{ gas: 1000, price: "1ugnot" }` → **1 ugnot per 1000 gas**.
+ * Min fee for a tx ≈ ceil(gas_wanted / 1000) ugnot. Paying a flat 1 GNOT per MsgCall
+ * was ~5–50× overpay on wrap/approve/swap steps.
  *
- * Simple realm calls: a few million. GnoSwap ExactInSwapRoute often needs 50M–150M+.
+ * "Out of gas" = gas_wanted too low (execution limit), not insufficient fee GNOT.
+ * Simple realm calls: a few million. GnoSwap ExactInSwapRoute often needs 80M–150M+.
  */
+
+/** Min ugnot fee for gas_wanted given Topaz-style price (1ugnot / 1000 gas) + buffer. */
+export function gasFeeForWanted(
+  gasWanted: bigint,
+  /** extra percent over min (default 25%) */
+  bufferPercent = 25,
+): string {
+  if (gasWanted <= 0n) return '1000ugnot';
+  // min = ceil(gasWanted / 1000)
+  const minUgnot = (gasWanted + 999n) / 1000n;
+  const buf = BigInt(Math.max(0, Math.min(200, bufferPercent)));
+  const withBuf = (minUgnot * (100n + buf)) / 100n;
+  // floor for tiny txs
+  const fee = withBuf < 1000n ? 1000n : withBuf;
+  return `${fee.toString()}ugnot`;
+}
+
+const SEND_WANTED = 2_000_000n;
+const CALL_WANTED = 15_000_000n;
+/** CLMM swap — high limit to avoid OOG; fee scales with this (~0.19 GNOT min @ Topaz) */
+const SWAP_WANTED = 150_000_000n;
+const APPROVE_WANTED = 12_000_000n;
+const WRAP_WANTED = 8_000_000n;
+
 export const DEFAULT_GAS = {
-  sendFee: '1000000ugnot',
-  sendGasWanted: BigInt(2_000_000),
-  callFee: '1000000ugnot',
-  callGasWanted: BigInt(20_000_000),
-  /**
-   * High limit for DEX router / concentrated-liquidity swaps.
-   * Topaz gasprice ≈ 1ugnot / 1000 gas → 200M gas needs only ~0.2 GNOT min fee.
-   * Keep fee at 1 GNOT so faucet wallets are not drained by three sequential txs.
-   */
-  swapFee: '1000000ugnot',
-  swapGasWanted: BigInt(200_000_000),
-  /** Wrap / Approve are lighter but still above simple calls */
-  approveFee: '1000000ugnot',
-  approveGasWanted: BigInt(30_000_000),
-  wrapFee: '1000000ugnot',
-  wrapGasWanted: BigInt(20_000_000),
+  sendGasWanted: SEND_WANTED,
+  sendFee: gasFeeForWanted(SEND_WANTED),
+  callGasWanted: CALL_WANTED,
+  callFee: gasFeeForWanted(CALL_WANTED),
+  swapGasWanted: SWAP_WANTED,
+  swapFee: gasFeeForWanted(SWAP_WANTED),
+  approveGasWanted: APPROVE_WANTED,
+  approveFee: gasFeeForWanted(APPROVE_WANTED),
+  wrapGasWanted: WRAP_WANTED,
+  wrapFee: gasFeeForWanted(WRAP_WANTED),
 };
 
 export type CallGasOpts = {
   gasFee?: string;
   gasWanted?: bigint;
 };
+
+/** Human label e.g. "0.19 GNOT" from "187500ugnot" */
+export function formatUgnotFee(fee: string): string {
+  const m = fee.match(/^(\d+)ugnot$/i);
+  if (!m) return fee;
+  const ug = BigInt(m[1]);
+  const whole = ug / 1_000_000n;
+  const frac = ug % 1_000_000n;
+  if (frac === 0n) return `${whole.toString()} GNOT`;
+  const fracStr = frac.toString().padStart(6, '0').replace(/0+$/, '');
+  return `${whole.toString()}.${fracStr} GNOT`;
+}

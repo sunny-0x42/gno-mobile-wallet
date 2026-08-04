@@ -11,7 +11,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, NavHeader, Screen, Spacer } from '@/components/ui';
-import { DEFAULT_GAS } from '@/config/networks';
+import { DEFAULT_GAS, formatUgnotFee, gasFeeForWanted } from '@/config/networks';
 import { SWAP_FEE_TIERS } from '@/config/swapTokens';
 import { tokensForChain, type SwapToken } from '@/config/swapTokens';
 import {
@@ -161,31 +161,38 @@ export default function SwapScreen({ navigation }: Props) {
       useNativeGnot: useNative && !!tokenIn.wrapsNative,
     });
 
+    // Fees scale with gas_wanted × Topaz gasprice (~1ugnot/1000 gas), not a flat 1 GNOT/tx.
+    const wrapGas = {
+      gasFee: gasFeeForWanted(DEFAULT_GAS.wrapGasWanted),
+      gasWanted: DEFAULT_GAS.wrapGasWanted,
+    };
+    const approveGas = {
+      gasFee: gasFeeForWanted(DEFAULT_GAS.approveGasWanted),
+      gasWanted: DEFAULT_GAS.approveGasWanted,
+    };
+    const swapGas = {
+      gasFee: gasFeeForWanted(DEFAULT_GAS.swapGasWanted),
+      gasWanted: DEFAULT_GAS.swapGasWanted,
+    };
+    const steps = plan.wrapUgnot ? 3 : 2;
+    const feeParts = [
+      plan.wrapUgnot ? `wrap ${formatUgnotFee(wrapGas.gasFee)}` : null,
+      `approve ${formatUgnotFee(approveGas.gasFee)}`,
+      `swap ${formatUgnotFee(swapGas.gasFee)}`,
+    ].filter(Boolean);
+
     const ok = await confirmAsync(
       'Confirm swap',
       `Swap ${amountIn} ${useNative && tokenIn.wrapsNative ? 'GNOT' : tokenIn.symbol} → ~${fromBaseUnits(quote.amountOut, tokenOut.decimals)} ${tokenOut.symbol}\n` +
         `Min out: ${fromBaseUnits(plan.amountOutMin, tokenOut.decimals)} (${slippagePct}% slip)\n` +
-        `Fee tier: ${quote.fee}\n` +
-        `Router: ExactInSwapRoute`,
+        `Pool fee tier: ${quote.fee}\n` +
+        `Network gas (~${steps} txs): ${feeParts.join(' + ')}\n` +
+        `(Topaz min ≈ gas_wanted/1000 ugnot; not a flat 1 GNOT fee)`,
     );
     if (!ok) return;
 
     setSwapping(true);
     try {
-      // Gas: GnoSwap CLMM swaps need far more than default call gas (5–20M).
-      // "Out of gas" = gas_wanted too low, not missing GNOT for fees.
-      const wrapGas = {
-        gasFee: DEFAULT_GAS.wrapFee,
-        gasWanted: DEFAULT_GAS.wrapGasWanted,
-      };
-      const approveGas = {
-        gasFee: DEFAULT_GAS.approveFee,
-        gasWanted: DEFAULT_GAS.approveGasWanted,
-      };
-      const swapGas = {
-        gasFee: DEFAULT_GAS.swapFee,
-        gasWanted: DEFAULT_GAS.swapGasWanted,
-      };
 
       // 1) Wrap GNOT → WUGNOT if needed
       if (plan.wrapUgnot) {
@@ -239,9 +246,13 @@ export default function SwapScreen({ navigation }: Props) {
     <Screen scroll>
       <NavHeader title="Swap" onBack={() => navigation.goBack()} large />
       <Text style={styles.sub}>
-        GnoSwap router · {network.name} ({network.chainId}). No WebView — direct MsgCall. Gas
-        wanted for swap: {(Number(DEFAULT_GAS.swapGasWanted) / 1e6).toFixed(0)}M · fee{' '}
-        {DEFAULT_GAS.swapFee}.
+        GnoSwap router · {network.name} ({network.chainId}). Direct MsgCall. Swap gas limit{' '}
+        {(Number(DEFAULT_GAS.swapGasWanted) / 1e6).toFixed(0)}M · network fee ≈{' '}
+        {formatUgnotFee(gasFeeForWanted(DEFAULT_GAS.swapGasWanted))}
+        {useNative && tokenIn.wrapsNative
+          ? ` (+ wrap/approve ≈ ${formatUgnotFee(gasFeeForWanted(DEFAULT_GAS.wrapGasWanted + DEFAULT_GAS.approveGasWanted))})`
+          : ` (+ approve ≈ ${formatUgnotFee(gasFeeForWanted(DEFAULT_GAS.approveGasWanted))})`}
+        .
       </Text>
 
       <View style={styles.card}>
