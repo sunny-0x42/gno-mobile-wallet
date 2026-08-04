@@ -65,7 +65,7 @@ export function AdenaHostProvider({ children }: { children: React.ReactNode }) {
   const enqueueEstablish = useCallback(
     (siteName: string, origin: string) =>
       new Promise<AdenaResponse>((resolve, reject) => {
-        const id = `est_${Date.now()}`;
+        const id = `est_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         setPending({
           id,
           kind: 'establish',
@@ -81,12 +81,30 @@ export function AdenaHostProvider({ children }: { children: React.ReactNode }) {
   const enqueueContract = useCallback(
     (params: AdenaDoContractParams, origin: string) =>
       new Promise<AdenaResponse>((resolve, reject) => {
-        const id = `tx_${Date.now()}`;
+        const id = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         setPending({
           id,
           kind: 'contract',
           origin,
           params,
+          resolve,
+          reject,
+        });
+      }),
+    [],
+  );
+
+  const enqueueSwitchNetwork = useCallback(
+    (networkId: string, chainId: string, networkName: string, origin: string) =>
+      new Promise<AdenaResponse>((resolve, reject) => {
+        const id = `net_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        setPending({
+          id,
+          kind: 'switch-network',
+          origin,
+          networkId,
+          chainId,
+          networkName,
           resolve,
           reject,
         });
@@ -220,10 +238,13 @@ export function AdenaHostProvider({ children }: { children: React.ReactNode }) {
             if (!match) {
               return fail('SWITCH_NETWORK_FAILED', `Unknown network: ${chainId}`);
             }
-            await switchNetwork(match.id);
-            return ok('SWITCH_NETWORK_SUCCESS', 'Network switched.', {
-              chainId: match.chainId,
-            });
+            // P0: never silent-switch — user must approve
+            if (match.id === network.id) {
+              return ok('SWITCH_NETWORK_SUCCESS', 'Already on this network.', {
+                chainId: match.chainId,
+              });
+            }
+            return await enqueueSwitchNetwork(match.id, match.chainId, match.name, origin);
           }
           case 'DoContract': {
             if (!established.current.has(origin)) {
@@ -248,10 +269,10 @@ export function AdenaHostProvider({ children }: { children: React.ReactNode }) {
     [
       enqueueContract,
       enqueueEstablish,
+      enqueueSwitchNetwork,
       network,
       networks,
       requireAccount,
-      switchNetwork,
     ],
   );
 
@@ -265,6 +286,19 @@ export function AdenaHostProvider({ children }: { children: React.ReactNode }) {
       req.resolve(
         ok('CONNECTION_SUCCESS', 'The connection has been successfully established.', {}),
       );
+      return;
+    }
+    if (req.kind === 'switch-network') {
+      try {
+        await switchNetwork(req.networkId);
+        req.resolve(
+          ok('SWITCH_NETWORK_SUCCESS', 'Network switched.', { chainId: req.chainId }),
+        );
+      } catch (e) {
+        req.resolve(
+          fail('SWITCH_NETWORK_FAILED', e instanceof Error ? e.message : String(e)),
+        );
+      }
       return;
     }
     try {
@@ -281,6 +315,8 @@ export function AdenaHostProvider({ children }: { children: React.ReactNode }) {
     setPending(null);
     if (req.kind === 'establish') {
       req.resolve(fail('CONNECTION_REJECTED', 'User rejected the connection.', 4001));
+    } else if (req.kind === 'switch-network') {
+      req.resolve(fail('SWITCH_NETWORK_REJECTED', 'User rejected network switch.', 4001));
     } else {
       req.resolve(fail('TRANSACTION_REJECTED', 'User rejected the transaction.', 4001));
     }
@@ -301,7 +337,11 @@ export function AdenaHostProvider({ children }: { children: React.ReactNode }) {
         <View style={styles.overlay}>
           <View style={styles.sheet}>
             <Text style={styles.title}>
-              {pending?.kind === 'establish' ? 'Connect dApp' : 'Approve transaction'}
+              {pending?.kind === 'establish'
+                ? 'Connect dApp'
+                : pending?.kind === 'switch-network'
+                  ? 'Switch network'
+                  : 'Approve transaction'}
             </Text>
             {pending?.kind === 'establish' ? (
               <>
@@ -317,10 +357,32 @@ export function AdenaHostProvider({ children }: { children: React.ReactNode }) {
                   Network: {network.name} ({network.chainId})
                 </Text>
               </>
+            ) : pending?.kind === 'switch-network' ? (
+              <>
+                <Text style={styles.body}>
+                  This site wants to change your active network.
+                </Text>
+                <Text style={styles.meta}>Origin: {pending.origin}</Text>
+                <Text style={styles.meta}>
+                  Current: {network.name} ({network.chainId})
+                </Text>
+                <Text style={styles.meta}>
+                  Requested: {pending.networkName} ({pending.chainId})
+                </Text>
+              </>
             ) : pending?.kind === 'contract' ? (
               <>
                 <Text style={styles.body}>Review and approve this transaction from the dApp.</Text>
                 <Text style={styles.meta}>Origin: {pending.origin}</Text>
+                <Text style={styles.meta}>
+                  Network: {network.name} ({network.chainId})
+                </Text>
+                {pending.params.gasFee != null || pending.params.gasWanted != null ? (
+                  <Text style={styles.meta}>
+                    Gas: wanted {String(pending.params.gasWanted ?? '—')} · fee{' '}
+                    {String(pending.params.gasFee ?? '—')}
+                  </Text>
+                ) : null}
                 <ScrollView style={styles.txBox}>
                   <Text style={styles.txJson}>
                     {JSON.stringify(

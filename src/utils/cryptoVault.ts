@@ -1,11 +1,11 @@
 /**
  * Password-based encryption for mnemonic storage.
  * - Prefers Web Crypto AES-GCM when crypto.subtle is available (HTTPS / localhost).
- * - Falls back to pure-JS AES-ish stream (PBKDF via @cosmjs/crypto) for Safari over HTTP LAN,
- *   where crypto.subtle is blocked outside secure contexts.
+ * - Weak XOR fallback is **decrypt-only** for legacy vaults; new encrypts require AES-GCM.
  */
 
-import { Random, sha256 } from '@cosmjs/crypto';
+import { sha256 } from '@cosmjs/crypto';
+import { hasWebCryptoSubtle, isSecureContext } from '@/utils/secureContext';
 
 function b64encode(buf: ArrayBuffer | Uint8Array): string {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -32,7 +32,7 @@ function b64decode(s: string): Uint8Array {
 }
 
 function hasSubtle(): boolean {
-  return typeof crypto !== 'undefined' && !!crypto.subtle;
+  return hasWebCryptoSubtle();
 }
 
 async function deriveKeySubtle(password: string, salt: Uint8Array): Promise<CryptoKey> {
@@ -90,35 +90,32 @@ function xorStream(data: Uint8Array, key: Uint8Array, nonce: Uint8Array): Uint8A
 export async function encryptSecret(plaintext: string, password: string): Promise<string> {
   if (!password) throw new Error('Password required to encrypt seed');
 
-  if (hasSubtle()) {
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const key = await deriveKeySubtle(password, salt);
-    const cipher = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      new TextEncoder().encode(plaintext),
+  // P0 security: never create new vaults with weak XOR on insecure pages
+  if (!hasSubtle()) {
+    throw new Error(
+      'Cannot encrypt seed: Web Crypto AES-GCM unavailable. Use HTTPS (or localhost) in a modern browser.',
     );
-    return JSON.stringify({
-      v: 1,
-      alg: 'aes-gcm',
-      salt: b64encode(salt),
-      iv: b64encode(iv),
-      data: b64encode(cipher),
-    });
+  }
+  if (!isSecureContext()) {
+    throw new Error(
+      'Cannot encrypt seed over plain HTTP. Open this wallet on HTTPS (e.g. Netlify) or http://localhost.',
+    );
   }
 
-  // Fallback for HTTP LAN / no SubtleCrypto
-  const salt = Random.getBytes(16);
-  const nonce = Random.getBytes(16);
-  const key = deriveKeyFallback(password, salt);
-  const data = xorStream(new TextEncoder().encode(plaintext), key, nonce);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKeySubtle(password, salt);
+  const cipher = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    new TextEncoder().encode(plaintext),
+  );
   return JSON.stringify({
     v: 1,
-    alg: 'xor-sha256',
+    alg: 'aes-gcm',
     salt: b64encode(salt),
-    iv: b64encode(nonce),
-    data: b64encode(data),
+    iv: b64encode(iv),
+    data: b64encode(cipher),
   });
 }
 

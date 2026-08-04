@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -31,6 +32,9 @@ import {
 import { storage } from '@/services/storage';
 import type { CustomToken, LocalTxRecord, WalletAccount } from '@/types';
 import { gnotToUgnot } from '@/utils/format';
+
+/** Auto-lock signing session after idle (web security P0). */
+const AUTO_LOCK_MS = 10 * 60 * 1000;
 
 function createBootClient(): GnoClient {
   if (shouldUseFakeMock()) return createMockClient();
@@ -65,6 +69,10 @@ type WalletContextValue = {
    * password is verified first, then the platform passkey must succeed.
    */
   unlockAccount: (name: string, password: string) => Promise<void>;
+  /** Clear signing keys from memory (all accounts). */
+  lockWallet: () => void;
+  /** Touch idle timer (call on user activity while unlocked). */
+  touchUnlockActivity: () => void;
   /** Whether the active account has passkey 2FA enabled */
   passkeyEnabled: boolean;
   passkeyMeta: PasskeyCredentialMeta | null;
@@ -109,6 +117,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [unlockedTick, setUnlockedTick] = useState(0);
   const [passkeyMeta, setPasskeyMeta] = useState<PasskeyCredentialMeta | null>(null);
   const [passkeySupport, setPasskeySupport] = useState<PasskeySupport | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const networks = useMemo(
     () => [...BUILTIN_NETWORKS, ...customNetworks],
@@ -125,6 +134,59 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     // Mock / native: treat as unlocked once an account is selected
     return !!activeAccount;
   }, [client, activeAccount, unlockedTick]);
+
+  const lockWallet = useCallback(() => {
+    const c = client as WebGnoClient;
+    if (typeof c.lockAll === 'function') c.lockAll();
+    else if (typeof c.lockAccount === 'function') c.lockAccount();
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+    setUnlockedTick((t) => t + 1);
+  }, [client]);
+
+  const touchUnlockActivity = useCallback(() => {
+    const c = client as WebGnoClient;
+    const unlocked =
+      activeAccount && typeof c.isUnlocked === 'function'
+        ? c.isUnlocked(activeAccount.name)
+        : false;
+    if (!unlocked || client.isMock) return;
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      lockWallet();
+    }, AUTO_LOCK_MS);
+  }, [activeAccount, client, lockWallet]);
+
+  useEffect(() => {
+    if (!isUnlocked || client.isMock) {
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+      return;
+    }
+    touchUnlockActivity();
+    // Browser: lock on tab hide / page hide (mobile background)
+    if (typeof document !== 'undefined') {
+      const onVis = () => {
+        if (document.visibilityState === 'hidden') {
+          // Soft policy: only reset idle timer when returning; do not hard-lock on every switch
+          // (mobile multi-task). Full lock remains on idle timeout.
+          touchUnlockActivity();
+        }
+      };
+      document.addEventListener('visibilitychange', onVis);
+      return () => {
+        document.removeEventListener('visibilitychange', onVis);
+        if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      };
+    }
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [isUnlocked, client.isMock, touchUnlockActivity]);
 
   const bootstrap = useCallback(async (c: GnoClient) => {
     const netId = (await storage.getNetworkId()) ?? DEFAULT_NETWORK_ID;
@@ -260,6 +322,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setActiveAccount(acc);
       await storage.setActiveAccountName(name);
       setUnlockedTick((t) => t + 1);
+      // start idle auto-lock
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        if (typeof c.lockAll === 'function') c.lockAll();
+        setUnlockedTick((t) => t + 1);
+      }, AUTO_LOCK_MS);
     },
     [client],
   );
@@ -477,6 +545,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     importAccount,
     generatePhrase,
     unlockAccount,
+    lockWallet,
+    touchUnlockActivity,
     passkeyEnabled,
     passkeyMeta,
     passkeySupport,

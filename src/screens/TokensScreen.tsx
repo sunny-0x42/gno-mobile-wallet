@@ -36,8 +36,8 @@ export default function TokensScreen({ navigation }: Props) {
     <Screen scroll>
       <NavHeader title="Tokens" onBack={() => navigation.goBack()} large />
       <Muted>
-        Home already shows GnoSwap tokens on Topaz (WUGNOT, GNS, USDC, ATOM, BTC, DAI, USDT) with
-        live pool prices. Add more custom GRC20 paths here for {network.name}.
+        Home shows balances for GnoSwap catalog tokens on Topaz (WUGNOT, GNS, USDC, ATOM, BTC, DAI,
+        USDT). Add more custom GRC20 paths here for {network.name}.
       </Muted>
 
       {visible.length === 0 ? (

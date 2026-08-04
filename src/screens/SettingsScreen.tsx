@@ -13,6 +13,7 @@ import {
 import { useRootNavigation } from '@/hooks/useRootNavigation';
 import { useWallet } from '@/provider/WalletProvider';
 import { colors, spacing, typography } from '@/theme';
+import SecureContextBanner from '@/components/SecureContextBanner';
 import { alertAsync, confirmAsync } from '@/utils/dialog';
 
 export default function SettingsScreen() {
@@ -23,6 +24,7 @@ export default function SettingsScreen() {
     isUnlocked,
     activeAccount,
     unlockAccount,
+    lockWallet,
     passkeyEnabled,
     passkeyMeta,
     passkeySupport,
@@ -50,7 +52,7 @@ export default function SettingsScreen() {
         : '';
       await alertAsync(
         'Unlocked',
-        `You can send, swap, and call realms until you close the tab.${extra}`,
+        `You can send, swap, and call realms until idle auto-lock (10 min) or you lock manually.${extra}`,
       );
     } catch (e) {
       setUnlockErr(e instanceof Error ? e.message : String(e));
@@ -118,6 +120,7 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.pad} showsVerticalScrollIndicator={false}>
         <Text style={typography.largeTitle}>Settings</Text>
         <Muted>Wallet, security, network, and about.</Muted>
+        <SecureContextBanner />
 
         <View style={styles.status}>
           <Text style={styles.statusLine}>
@@ -164,6 +167,24 @@ export default function SettingsScreen() {
               icon={passkeyEnabled ? 'finger-print' : 'lock-open'}
               onPress={onUnlock}
               loading={unlocking}
+            />
+          </View>
+        ) : null}
+
+        {!isMock && activeAccount && isUnlocked ? (
+          <View style={styles.unlockBox}>
+            <Text style={styles.unlockTitle}>Session unlocked</Text>
+            <Muted>
+              Signing keys are in memory. Auto-locks after 10 minutes idle. Lock now when finished.
+            </Muted>
+            <Button
+              title="Lock wallet"
+              icon="lock-closed"
+              variant="secondary"
+              onPress={() => {
+                lockWallet();
+                void alertAsync('Locked', 'Signing session cleared. Unlock again to send or swap.');
+              }}
             />
           </View>
         ) : null}

@@ -19,12 +19,14 @@ Inspired by [Adena](https://adena.app) (desktop extension). Independent project 
 | Device passkey 2FA (WebAuthn + password) | ✅ Web / HTTPS |
 | Multi-network (Topaz, Test13, Staging, Betanet, custom RPC) | ✅ |
 | Live GNOT balance (RPC `bank/balances`) | ✅ |
-| Multi-asset list + GnoSwap catalog (Topaz) | ✅ |
-| Token USD prices (GnoSwap → test USDC) | ✅ Topaz |
+| Multi-asset list + GnoSwap catalog (Topaz) | ✅ balances only |
+| Token USD prices (GnoSwap → test USDC) | ⏸️ deferred (experimental) |
 | Send / receive GNOT | ✅ Web |
 | Realm `MsgCall` | ✅ Web |
 | **Quick Swap** (GnoSwap router, no WebView) | ✅ Topaz |
 | Multi-account | ✅ |
+| **Desktop extension** (Chrome/Edge MV3 + Adena) | ✅ `npm run ext:build` |
+| Multi-device vault sync | ⏸️ Phase 2 |
 | iOS / Android native shell | 🚧 Scaffold + EAS configs |
 | In-app dApp browser + Adena API | ✅ (GnoSwap site may not load in mobile WebView) |
 
@@ -75,6 +77,15 @@ Creates/imports **real** BIP39 wallets, queries Topaz (or the selected network) 
 ```bash
 npm run ts:check
 ```
+
+### Desktop extension (Chrome / Edge)
+
+```bash
+npm run ext:build
+# Chrome → chrome://extensions → Developer mode → Load unpacked → extension/dist
+```
+
+See [docs/EXTENSION.md](./docs/EXTENSION.md).
 
 ---
 

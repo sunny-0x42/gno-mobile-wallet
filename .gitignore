@@ -5,7 +5,6 @@ node_modules/
 .expo/
 dist/
 web-build/
-expo-env.d.ts
 
 # Native generated projects (use prebuild locally)
 ios/
@@ -38,3 +37,6 @@ coverage/
 
 # TypeScript
 *.tsbuildinfo
+
+# Local Netlify folder
+.netlify

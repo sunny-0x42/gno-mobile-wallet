@@ -34,6 +34,8 @@
     "prebuild": "expo prebuild",
     "ts:check": "tsc --noEmit",
     "lint": "tsc --noEmit",
+    "ext:dev": "vite build --config extension/vite.config.ts --watch",
+    "ext:build": "vite build --config extension/vite.config.ts",
     "eas:login": "eas login",
     "eas:init": "eas init",
     "build:ios": "eas build --platform ios --profile preview",
@@ -73,8 +75,12 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@types/chrome": "^0.2.5",
     "@types/react": "~18.2.79",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^4.7.0",
     "babel-plugin-module-resolver": "^5.0.2",
-    "typescript": "~5.3.3"
+    "typescript": "~5.3.3",
+    "vite": "^5.4.21"
   }
 }

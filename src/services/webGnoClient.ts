@@ -3,7 +3,6 @@
  * Creates real g1 addresses compatible with Adena / gnokey (same HD path + prefix).
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   GnoJSONRPCProvider,
   GnoWallet,
@@ -16,6 +15,7 @@ import { decryptSecret, encryptSecret } from '@/utils/cryptoVault';
 import { checkMnemonic, generateMnemonic12, normalizeMnemonic } from '@/utils/mnemonic';
 import { fetchAllBalances, fetchNativeBalances } from '@/services/rpcBalance';
 import type { BalanceResult, CallResult, GnoClient } from '@/services/gnoClient';
+import { getStoragePort } from '@/services/storagePort';
 
 const VAULT_KEY = '@gmw/webVault/v1';
 
@@ -29,8 +29,8 @@ type VaultRecord = {
 type SessionEntry = {
   record: VaultRecord;
   wallet: GnoWallet;
+  /** Kept only while unlocked for re-derive if needed; never persist password */
   mnemonic: string;
-  password: string;
 };
 
 export class WebGnoClient implements GnoClient {
@@ -45,7 +45,7 @@ export class WebGnoClient implements GnoClient {
   private activeName: string | null = null;
 
   private async loadVault(): Promise<VaultRecord[]> {
-    const raw = await AsyncStorage.getItem(VAULT_KEY);
+    const raw = await getStoragePort().getItem(VAULT_KEY);
     if (!raw) return [];
     try {
       return JSON.parse(raw) as VaultRecord[];
@@ -55,7 +55,7 @@ export class WebGnoClient implements GnoClient {
   }
 
   private async saveVault(records: VaultRecord[]): Promise<void> {
-    await AsyncStorage.setItem(VAULT_KEY, JSON.stringify(records));
+    await getStoragePort().setItem(VAULT_KEY, JSON.stringify(records));
   }
 
   private async buildWallet(mnemonic: string): Promise<GnoWallet> {
@@ -149,7 +149,7 @@ export class WebGnoClient implements GnoClient {
     vault.push(record);
     await this.saveVault(vault);
 
-    this.session.set(name, { record, wallet, mnemonic: phrase, password });
+    this.session.set(name, { record, wallet, mnemonic: phrase });
     this.activeName = name;
     return { name, address };
   }
@@ -223,10 +223,20 @@ export class WebGnoClient implements GnoClient {
       record: rec,
       wallet,
       mnemonic,
-      password,
     });
     this.activeName = name;
     return { name, address };
+  }
+
+  /** Clear signing session for one account (wipe keys from memory). */
+  lockAccount(name?: string): void {
+    const n = name ?? this.activeName;
+    if (n) this.session.delete(n);
+  }
+
+  /** Clear all unlocked sessions. */
+  lockAll(): void {
+    this.session.clear();
   }
 
   async setPassword(_password: string, _addressBytes?: Uint8Array): Promise<void> {

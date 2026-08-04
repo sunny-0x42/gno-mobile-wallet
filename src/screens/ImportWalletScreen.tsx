@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Button, Input, Muted, NavHeader, Screen, Spacer } from '@/components/ui';
+import SecureContextBanner from '@/components/SecureContextBanner';
 import type { RootStackParamList } from '@/router/types';
 import { useWallet } from '@/provider/WalletProvider';
 import { normalizeMnemonic } from '@/utils/mnemonic';
+import { assertCanCreateVault } from '@/utils/secureContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ImportWallet'>;
 
@@ -29,6 +31,7 @@ export default function ImportWalletScreen({ navigation }: Props) {
     if (password !== confirm) return setError('Passwords do not match');
     setLoading(true);
     try {
+      assertCanCreateVault();
       await importAccount(name.trim() || 'imported', normalized, password);
       navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
     } catch (e) {
@@ -41,6 +44,7 @@ export default function ImportWalletScreen({ navigation }: Props) {
   return (
     <Screen scroll>
       <NavHeader title="Import Wallet" onBack={() => navigation.goBack()} large />
+      <SecureContextBanner />
       <Muted>
         Paste 12 or 24 English BIP39 words from Adena / gnokey. Spaces/newlines are cleaned
         automatically. Word count: {wordCount || 0}.

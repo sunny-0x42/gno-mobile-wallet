@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Button, Input, Muted, NavHeader, Screen, Spacer } from '@/components/ui';
+import SecureContextBanner from '@/components/SecureContextBanner';
 import type { RootStackParamList } from '@/router/types';
 import { useWallet } from '@/provider/WalletProvider';
+import { assertCanCreateVault } from '@/utils/secureContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'CreatePassword'>;
 
@@ -22,6 +24,7 @@ export default function CreatePasswordScreen({ navigation, route }: Props) {
     if (password !== confirm) return setError('Passwords do not match');
     setLoading(true);
     try {
+      assertCanCreateVault();
       await createAccount(name.trim(), phrase, password);
       navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
     } catch (e) {
@@ -34,6 +37,7 @@ export default function CreatePasswordScreen({ navigation, route }: Props) {
   return (
     <Screen scroll>
       <NavHeader title="Secure Wallet" onBack={() => navigation.goBack()} large />
+      <SecureContextBanner />
       <Muted>This password unlocks your keyring on this device. It is not a recovery method.</Muted>
       <Input
         label="Account name"

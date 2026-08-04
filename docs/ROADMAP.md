@@ -11,11 +11,13 @@
 
 ## Next
 
+- [x] Desktop Chrome/Edge extension (MV3) scaffold + Adena inject  
 - [ ] Unit tests (mnemonic normalize, balance parse)  
 - [ ] Indexer-backed history  
 - [ ] Stronger GRC20 registry (per-network token lists)  
 - [ ] Full gnonative native builds on EAS  
 - [ ] GnoConnect deep-link end-to-end  
+- [ ] Encrypted backup / multi-device sync  
 - [ ] Optional i18n (English remains source of truth)  
 
 ## Later
@@ -23,3 +25,5 @@
 - NFT views  
 - Hardware / airgap  
 - Store listings (Play / App Store) after audit  
+- Firefox extension packaging  
+

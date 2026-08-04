@@ -16,7 +16,10 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { useAdenaHost } from '@/provider/AdenaHost';
 import { useWallet } from '@/provider/WalletProvider';
 import type { RootStackParamList } from '@/router/types';
-import { buildAdenaInjectScript } from '@/services/adenaInjectScript';
+import {
+  buildAdenaInjectScript,
+  createAdenaBridgeSecret,
+} from '@/services/adenaInjectScript';
 import { colors, spacing, typography } from '@/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'DAppBrowser'>;
@@ -25,13 +28,15 @@ export default function DAppBrowserScreen({ navigation, route }: Props) {
   const { url: initialUrl, title, injectAdena = true } = route.params;
   const webRef = useRef<WebView>(null);
   const { handleMethod } = useAdenaHost();
-  const { activeAccount, network, switchNetwork, networks } = useWallet();
+  const { activeAccount, network, switchNetwork, networks, touchUnlockActivity } = useWallet();
   const [url, setUrl] = useState(initialUrl);
   const [addressBar, setAddressBar] = useState(initialUrl);
   const [loading, setLoading] = useState(true);
   const [canGoBack, setCanGoBack] = useState(false);
 
-  const inject = useMemo(() => buildAdenaInjectScript(), []);
+  // One secret per browser mount — responses without it are ignored by inject script
+  const bridgeSecret = useMemo(() => createAdenaBridgeSecret(), []);
+  const inject = useMemo(() => buildAdenaInjectScript(bridgeSecret), [bridgeSecret]);
 
   // Prefer Topaz (or preferred chain) when opening GnoSwap-like dApps
   React.useEffect(() => {
@@ -50,6 +55,7 @@ export default function DAppBrowserScreen({ navigation, route }: Props) {
         id,
         result,
         error,
+        bridgeSecret,
       });
       // RN WebView
       webRef.current?.injectJavaScript(`
@@ -62,7 +68,7 @@ export default function DAppBrowserScreen({ navigation, route }: Props) {
         })();
       `);
     },
-    [],
+    [bridgeSecret],
   );
 
   const onMessage = useCallback(
@@ -79,6 +85,9 @@ export default function DAppBrowserScreen({ navigation, route }: Props) {
         return;
       }
       if (data.type !== 'adena-request' || !data.id || !data.method) return;
+      // Ignore requests not from our inject script
+      if ((data as { bridgeSecret?: string }).bridgeSecret !== bridgeSecret) return;
+      touchUnlockActivity();
       const origin = (() => {
         try {
           return new URL(url).origin;
@@ -93,7 +102,7 @@ export default function DAppBrowserScreen({ navigation, route }: Props) {
         reply(data.id, undefined, e instanceof Error ? e.message : String(e));
       }
     },
-    [handleMethod, reply, url],
+    [bridgeSecret, handleMethod, reply, touchUnlockActivity, url],
   );
 
   // Web parent postMessage bridge (iframe path)
@@ -107,6 +116,8 @@ export default function DAppBrowserScreen({ navigation, route }: Props) {
         return;
       }
       if (!data || data.source !== 'gno-wallet-adena' || data.type !== 'adena-request') return;
+      if (data.bridgeSecret !== bridgeSecret) return;
+      touchUnlockActivity();
       const origin = (() => {
         try {
           return new URL(url).origin;
@@ -116,12 +127,11 @@ export default function DAppBrowserScreen({ navigation, route }: Props) {
       })();
       try {
         const result = await handleMethod(data.method, data.params || {}, origin);
-        // post back to iframe
         const frames = window.frames;
         for (let i = 0; i < frames.length; i++) {
           try {
             frames[i].postMessage(
-              { type: 'adena-response', id: data.id, result },
+              { type: 'adena-response', id: data.id, result, bridgeSecret },
               '*',
             );
           } catch {
@@ -136,6 +146,7 @@ export default function DAppBrowserScreen({ navigation, route }: Props) {
                 type: 'adena-response',
                 id: data.id,
                 error: e instanceof Error ? e.message : String(e),
+                bridgeSecret,
               },
               '*',
             );
@@ -147,7 +158,7 @@ export default function DAppBrowserScreen({ navigation, route }: Props) {
     };
     window.addEventListener('message', onWinMessage);
     return () => window.removeEventListener('message', onWinMessage);
-  }, [handleMethod, url]);
+  }, [bridgeSecret, handleMethod, touchUnlockActivity, url]);
 
   const go = () => {
     let next = addressBar.trim();

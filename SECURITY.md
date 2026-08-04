@@ -35,6 +35,15 @@ When passkey is enabled for an account:
 
 Passkeys do **not** replace the password and are bound to the site origin (e.g. `gno-mobile-wallet.netlify.app`). They require HTTPS (or localhost). Clearing site data removes local passkey registration metadata; the OS may still keep the credential, but the wallet will treat passkey as disabled until re-enabled.
 
+## Hardening (web mobile, shipped priorities)
+
+| Control | Behavior |
+|---------|----------|
+| Secure context | **New vault encrypt requires HTTPS/localhost + Web Crypto AES-GCM** (weak XOR encrypt disabled) |
+| Session | Password is **not** stored after unlock; idle **auto-lock ~10 min**; Settings → Lock |
+| dApp SwitchNetwork | Requires **user approval** modal |
+| Adena bridge | Response messages require a **per-session bridge secret** (anti-forge) |
+
 ## Reporting a vulnerability (reminder)
 
 Never paste mnemonics or passwords into issues.

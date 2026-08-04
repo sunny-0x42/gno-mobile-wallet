@@ -58,4 +58,14 @@ export type AdenaPendingRequest =
       params: AdenaDoContractParams;
       resolve: (v: AdenaResponse) => void;
       reject: (e: Error) => void;
+    }
+  | {
+      id: string;
+      kind: 'switch-network';
+      origin: string;
+      networkId: string;
+      chainId: string;
+      networkName: string;
+      resolve: (v: AdenaResponse) => void;
+      reject: (e: Error) => void;
     };
