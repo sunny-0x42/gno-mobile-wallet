@@ -172,6 +172,7 @@ export const DEFAULT_WATCHED_TOKENS: Record<
   string,
   { pkgPath: string; symbol: string; decimals: number }[]
 > = {
+  'sapphire-1': [{ pkgPath: 'gno.land/r/gnoland/wugnot', symbol: 'WUGNOT', decimals: 6 }],
   'topaz-1': defaultWatchedGrc20('topaz-1'),
   'test-13': [{ pkgPath: 'gno.land/r/gnoland/wugnot', symbol: 'WUGNOT', decimals: 6 }],
   staging: [{ pkgPath: 'gno.land/r/gnoland/wugnot', symbol: 'WUGNOT', decimals: 6 }],

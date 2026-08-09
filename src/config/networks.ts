@@ -11,10 +11,21 @@ export type NetworkConfig = {
 
 /**
  * Built-in networks.
- * Topaz: experimental testnet (chain-id topaz-1)
+ * Sapphire: latest experimental testnet (chain-id sapphire-1) — fresh chain after Topaz.
+ * Topaz: previous experimental testnet (chain-id topaz-1)
  * Also see https://docs.gno.land/resources/gnoland-networks/
+ * https://github.com/gnolang/gno/releases (chain/sapphire)
  */
 export const BUILTIN_NETWORKS: NetworkConfig[] = [
+  {
+    id: 'sapphire',
+    name: 'Sapphire',
+    chainId: 'sapphire-1',
+    remote: 'https://rpc.sapphire.testnets.gno.land:443',
+    faucetUrl: 'https://faucet.gno.land',
+    explorerUrl: 'https://sapphire.testnets.gno.land',
+    isTestnet: true,
+  },
   {
     id: 'topaz',
     name: 'Topaz',
@@ -53,7 +64,7 @@ export const BUILTIN_NETWORKS: NetworkConfig[] = [
 ];
 
 /** Default for new installs — latest experimental testnet */
-export const DEFAULT_NETWORK_ID = 'topaz';
+export const DEFAULT_NETWORK_ID = 'sapphire';
 
 export const UGNOT_PER_GNOT = 1_000_000;
 

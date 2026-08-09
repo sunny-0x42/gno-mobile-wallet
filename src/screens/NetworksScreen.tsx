@@ -35,7 +35,7 @@ export default function NetworksScreen({ navigation }: Props) {
   return (
     <Screen scroll>
       <NavHeader title="Networks" onBack={() => navigation.goBack()} large />
-      <Muted>Choose a gno.land network. Default is Topaz (topaz-1).</Muted>
+      <Muted>Choose a gno.land network. Default is Sapphire (sapphire-1).</Muted>
 
       <View style={styles.list}>
         {networks.map((n, i) => {
