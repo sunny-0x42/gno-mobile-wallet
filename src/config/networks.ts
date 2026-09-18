@@ -11,12 +11,29 @@ export type NetworkConfig = {
 
 /**
  * Built-in networks.
- * Sapphire: latest experimental testnet (chain-id sapphire-1) — fresh chain after Topaz.
- * Topaz: previous experimental testnet (chain-id topaz-1)
- * Also see https://docs.gno.land/resources/gnoland-networks/
- * https://github.com/gnolang/gno/releases (chain/sapphire)
+ * Mainnet: gnoland-1 (live since 2026-09-12) — fresh chain, not a betanet hardfork.
+ * rpc.gno.land now serves mainnet; retired betanet was chain-id `gnoland1`.
+ * See https://docs.gno.land/resources/gnoland-networks/
  */
 export const BUILTIN_NETWORKS: NetworkConfig[] = [
+  {
+    id: 'mainnet',
+    name: 'Mainnet',
+    chainId: 'gnoland-1',
+    remote: 'https://rpc.gno.land:443',
+    explorerUrl: 'https://gno.land',
+    isTestnet: false,
+    // No faucet on mainnet — real GNOT only
+  },
+  {
+    id: 'pearl',
+    name: 'Pearl',
+    chainId: 'pearl-1',
+    remote: 'https://rpc.pearl.testnets.gno.land:443',
+    faucetUrl: 'https://faucet.gno.land',
+    explorerUrl: 'https://pearl.testnets.gno.land',
+    isTestnet: true,
+  },
   {
     id: 'sapphire',
     name: 'Sapphire',
@@ -53,33 +70,33 @@ export const BUILTIN_NETWORKS: NetworkConfig[] = [
     explorerUrl: 'https://staging.gno.land',
     isTestnet: true,
   },
-  {
-    id: 'betanet',
-    name: 'Betanet',
-    chainId: 'gnoland1',
-    remote: 'https://rpc.gno.land:443',
-    explorerUrl: 'https://gno.land',
-    isTestnet: false,
-  },
 ];
 
-/** Default for new installs — latest experimental testnet */
-export const DEFAULT_NETWORK_ID = 'sapphire';
+/** Default for new installs — production mainnet */
+export const DEFAULT_NETWORK_ID = 'mainnet';
+
+/**
+ * Map legacy stored network ids (betanet used rpc.gno.land with old chain-id gnoland1).
+ */
+export function migrateNetworkId(id: string | null | undefined): string {
+  if (!id) return DEFAULT_NETWORK_ID;
+  if (id === 'betanet') return 'mainnet';
+  return id;
+}
 
 export const UGNOT_PER_GNOT = 1_000_000;
 
 /**
  * Default gas for wallet txs.
  *
- * Topaz `auth/gasprice` ≈ `{ gas: 1000, price: "1ugnot" }` → **1 ugnot per 1000 gas**.
- * Min fee for a tx ≈ ceil(gas_wanted / 1000) ugnot. Paying a flat 1 GNOT per MsgCall
- * was ~5–50× overpay on wrap/approve/swap steps.
+ * Mainnet / recent testnets `auth/gasprice` ≈ `{ gas: 1000, price: "1ugnot" }`
+ * → **1 ugnot per 1000 gas**. Fee ≈ ceil(gas_wanted / 1000) ugnot (+ buffer).
  *
  * "Out of gas" = gas_wanted too low (execution limit), not insufficient fee GNOT.
  * Simple realm calls: a few million. GnoSwap ExactInSwapRoute often needs 80M–150M+.
  */
 
-/** Min ugnot fee for gas_wanted given Topaz-style price (1ugnot / 1000 gas) + buffer. */
+/** Min ugnot fee for gas_wanted given 1ugnot/1000 gas + buffer. */
 export function gasFeeForWanted(
   gasWanted: bigint,
   /** extra percent over min (default 25%) */
@@ -97,7 +114,7 @@ export function gasFeeForWanted(
 
 const SEND_WANTED = 2_000_000n;
 const CALL_WANTED = 15_000_000n;
-/** CLMM swap — high limit to avoid OOG; fee scales with this (~0.19 GNOT min @ Topaz) */
+/** CLMM swap — high limit to avoid OOG; fee scales with this (~0.19 GNOT min) */
 const SWAP_WANTED = 150_000_000n;
 const APPROVE_WANTED = 12_000_000n;
 const WRAP_WANTED = 8_000_000n;

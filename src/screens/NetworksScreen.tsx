@@ -35,7 +35,10 @@ export default function NetworksScreen({ navigation }: Props) {
   return (
     <Screen scroll>
       <NavHeader title="Networks" onBack={() => navigation.goBack()} large />
-      <Muted>Choose a gno.land network. Default is Sapphire (sapphire-1).</Muted>
+      <Muted>
+        Choose a gno.land network. Default is Mainnet (gnoland-1). Mainnet has no faucet — real
+        GNOT only. Use Pearl / Sapphire / Topaz for free test tokens.
+      </Muted>
 
       <View style={styles.list}>
         {networks.map((n, i) => {

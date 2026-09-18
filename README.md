@@ -17,7 +17,7 @@ Inspired by [Adena](https://adena.app) (desktop extension). Independent project 
 | Create / import BIP39 seed (`g1…` addresses) | ✅ Web (JS client) · 🔲 Native via gnonative |
 | Encrypted local vault (password) | ✅ |
 | Device passkey 2FA (WebAuthn + password) | ✅ Web / HTTPS |
-| Multi-network (Topaz, Test13, Staging, Betanet, custom RPC) | ✅ |
+| Multi-network (Mainnet, Pearl, Sapphire, Topaz, Staging, custom RPC) | ✅ |
 | Live GNOT balance (RPC `bank/balances`) | ✅ |
 | Multi-asset list + GnoSwap catalog (Topaz) | ✅ balances only |
 | Token USD prices (GnoSwap → test USDC) | ⏸️ deferred (experimental) |
@@ -173,14 +173,18 @@ gno.land RPC (Topaz / …)
 
 ## Networks
 
-| Name | Chain ID | RPC |
-|------|----------|-----|
-| Topaz | `topaz-1` | `https://rpc.topaz.testnets.gno.land` |
-| Test13 | `test-13` | `https://rpc.test13.testnets.gno.land:443` |
-| Staging | `staging` | `https://rpc.staging.gno.land:443` |
-| Betanet | `gnoland1` | `https://rpc.gno.land:443` |
+| Name | Chain ID | RPC | Notes |
+|------|----------|-----|--------|
+| **Mainnet** | `gnoland-1` | `https://rpc.gno.land:443` | Production. No faucet. |
+| Pearl | `pearl-1` | `https://rpc.pearl.testnets.gno.land:443` | Testnet |
+| Sapphire | `sapphire-1` | `https://rpc.sapphire.testnets.gno.land:443` | Testnet |
+| Topaz | `topaz-1` | `https://rpc.topaz.testnets.gno.land:443` | Testnet (GnoSwap pools) |
+| Staging | `staging` | `https://rpc.staging.gno.land:443` | Rolling build |
+| Test13 | `test-13` | `https://rpc.test13.testnets.gno.land:443` | Sunset |
 
-Faucet: [https://faucet.gno.land](https://faucet.gno.land)
+Testnet faucet: [https://faucet.gno.land](https://faucet.gno.land) (not mainnet).
+
+> Betanet (`gnoland1`) is retired. `rpc.gno.land` now serves **mainnet** (`gnoland-1`).
 
 ---
 

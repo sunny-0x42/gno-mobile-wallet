@@ -11,6 +11,7 @@ import {
   BUILTIN_NETWORKS,
   DEFAULT_GAS,
   DEFAULT_NETWORK_ID,
+  migrateNetworkId,
   type NetworkConfig,
 } from '@/config/networks';
 import {
@@ -189,7 +190,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [isUnlocked, client.isMock, touchUnlockActivity]);
 
   const bootstrap = useCallback(async (c: GnoClient) => {
-    const netId = (await storage.getNetworkId()) ?? DEFAULT_NETWORK_ID;
+    const rawNetId = await storage.getNetworkId();
+    const netId = migrateNetworkId(rawNetId);
+    if (rawNetId && rawNetId !== netId) {
+      await storage.setNetworkId(netId);
+    }
     const customs = await storage.getCustomNetworks();
     setCustomNetworks(customs);
     const all = [...BUILTIN_NETWORKS, ...customs];

@@ -32,7 +32,8 @@ export default function WelcomeScreen({ navigation }: Props) {
         <Text style={styles.heroTitle}>Gno Wallet</Text>
         <Text style={styles.heroSub}>
           Self-custody wallet for gno.land. On web, create/import a real BIP39 seed (g1 address,
-          compatible with Adena & gnokey). Fund via faucet, then send on Sapphire / testnets.
+          compatible with Adena & gnokey). Mainnet (gnoland-1) is supported; use a testnet faucet
+          for free GNOT.
         </Text>
       </View>
 
@@ -55,7 +56,7 @@ export default function WelcomeScreen({ navigation }: Props) {
       <View style={styles.features}>
         <Feature icon="shield-checkmark" text="Keys stay on your device" />
         <Feature icon="phone-portrait" text="Built for Apple platforms" />
-        <Feature icon="git-network" text="Sapphire · Topaz · Test13 · Staging · Betanet" />
+        <Feature icon="git-network" text="Mainnet · Pearl · Sapphire · Topaz · Staging" />
       </View>
 
       <Muted center>
